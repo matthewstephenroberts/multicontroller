@@ -1,0 +1,1277 @@
+/* ---- Theme: dark (default) + light, plus a bright LEGO-brick palette used for navigation ---- */
+:root {
+  --bg: #0e1116;
+  --bg-grad: radial-gradient(1200px 600px at 70% -10%, #182233 0%, #0e1116 55%);
+  --panel: #161b22;
+  --panel-2: #1c2230;
+  --panel-3: #0f1420;
+  --line: #273042;
+  --text: #e6edf3;
+  --muted: #8b97a7;
+  --accent: #4ea8ff;
+  --accent-2: #38d39f;
+  --warn: #ffb454;
+  --danger: #ff6b6b;
+  --radius: 14px;
+  /* Shared target height for every small form control (text/number input, select, checkbox) so
+     a row mixing them (see .field.inline and Toggle usage) lines up on one consistent baseline
+     instead of each control's own intrinsic sizing setting its own height. */
+  --control-h: 30px;
+
+  /* Classic LEGO brick colours — bright and stable across both themes, used for the tab bar,
+     panel accents, and anything that should feel playful/"LEGO" rather than neutral chrome. */
+  --lego-red: #d5192a;
+  --lego-yellow: #ffd500;
+  --lego-blue: #0059ab;
+  --lego-azure: #06a2d6;
+  --lego-green: #00a651;
+  --lego-orange: #ff8200;
+  --lego-teal: #00aad4;
+
+  /* Nunito for everything read at length (body text, forms, data) — rounded terminals keep the
+     LEGO/kids personality without Fredoka's heavier display weight fighting legibility in dense
+     sensor config screens. Fredoka reserved for headings/buttons/tab labels below, where its
+     bold rounded-geometric shapes read as "toy brand" at a glance. Both self-hosted via
+     @fontsource (OFL-1.1, see THIRD_PARTY_NOTICES.md); system-ui stays as the fallback chain. */
+  --font-body: "Nunito", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-heading: "Fredoka", var(--font-body);
+
+  font-family: var(--font-body);
+}
+
+:root[data-theme="light"] {
+  --bg: #f4f6fb;
+  --bg-grad: radial-gradient(1200px 600px at 70% -10%, #eaf1ff 0%, #f4f6fb 55%);
+  --panel: #ffffff;
+  --panel-2: #f0f3f9;
+  --panel-3: #ffffff;
+  --line: #dbe2ee;
+  --text: #1c2431;
+  --muted: #64708a;
+  --accent: #0072e5;
+  --accent-2: #1a9e6b;
+  --warn: #b3690a;
+  --danger: #d5192a;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+/* ---- Themed scrollbars — replaces the OS-default grey bar (visibly out of place against a
+   rounded, coloured, kid-friendly UI) everywhere the app scrolls: the main panel, the tab bar
+   on narrow widths, the header's connected-state row, code/log blocks, HelpTip's popover, etc.
+   Firefox uses the standard scrollbar-color/-width properties; Chrome/Edge/Safari need the
+   -webkit-scrollbar pseudo-elements instead — both declared so every browser gets a themed bar,
+   not just one engine. Thumb brightens to --panel-accent (the active tab's own colour, see
+   .panel-scroll[data-colour] below) on hover, so even the scrollbar carries the current tab's
+   colour identity rather than being the one remaining flat-grey element on the page. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+*::-webkit-scrollbar { width: 12px; height: 12px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--panel-accent, var(--accent));
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-corner { background: transparent; }
+
+body {
+  background: var(--bg-grad);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.2s, color 0.2s;
+}
+
+/* ---- App shell: fills the viewport, only the active panel scrolls internally ---- */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+.app-header h1 {
+  font-family: var(--font-heading);
+  font-size: 24px;
+  letter-spacing: -0.01em;
+  margin: 0;
+  font-weight: 700;   /* Fredoka tops out at 700 — no 800 weight in the OFL-licensed static set */
+}
+.app-header h1 .logo-brick {
+  display: inline-block;
+  vertical-align: -6px;
+  margin-right: 8px;
+}
+.app-header h1 span.accent { color: var(--lego-red); }
+.app-header .sub { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+.app-header .header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* Without this, the connected-state pills (Save/Start polling/rename/select/Disconnect) can
+     get squeezed narrower than their text at moderate window widths, wrapping to two lines —
+     which is what actually blows their heights out relative to their neighbours (e.g. "Save to
+     device" going to ~2x a single-line button's height while "Disconnect" stays put). Each pill
+     keeps its natural width and the row scrolls horizontally instead, rather than any one pill
+     silently growing. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+/* Every pill-shaped control in the connected-state row (buttons, the polling-cap select, the
+   DEMO tag) locked to one shared height — audited via actual getBoundingClientRect() measurements
+   at rest, which showed real drift: the DEMO tag at 21px next to 29-31px buttons/select, and the
+   plain-text board-name/gamepad spans at 31-33px from a padding value that made sense for a
+   button hit-target but not for undecorated text. flex-shrink:0 pairs with the row's nowrap above
+   so nothing here silently narrows and wraps. */
+/* Scoped to the connected-state .row, not the whole .header-right — .theme-toggle is a direct
+   sibling of that row (always visible, connected or not) and keeps its own larger round-icon
+   sizing further down; it must NOT get pulled down to this row's 32px. */
+.app-header .header-right .row button,
+.app-header .header-right .row select,
+.app-header .header-right .row .tag {
+  height: 32px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.app-header .header-right .row.gap { flex-shrink: 0; }
+.app-header .header-right .row .muted.sm {
+  height: 32px;
+  padding: 0 2px;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+/* DeviceNameBadge's rename button carries the board's user-chosen name, which has no length
+   cap enforced at the CSS layer (only the 19-char input maxLength) — keep it from pushing every
+   button after it off-row on a long name; ellipsis over a second silent wrap. */
+.app-header .header-right .row button.ghost.sm { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+/* select keeps its native OS dropdown chrome by default (appearance: auto) — a visibly different
+   control language than the flat custom-styled buttons either side of it in the same row. A
+   plain CSS gradient chevron replaces the native arrow without needing an SVG asset. */
+.app-header .polling-cap-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0 26px 0 12px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: right 16px center, right 11px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.theme-toggle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+/* ---- Tab bar: big, colourful, rounded pills — one LEGO colour per section ---- */
+/* "Brick shelf": the tab bar reads as a baseplate strip that each tab sits on, LEGO-brick
+   style — a stud row along the top of the active tab (see .tab.active::before), and a subtle
+   groove pattern along the bar itself. */
+.tabbar {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+  padding: 14px 24px 10px;
+  overflow-x: auto;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.tab {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background: var(--panel-2);
+  color: var(--text);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.12s, filter 0.15s, background 0.15s, box-shadow 0.15s;
+}
+/* A single glossy stud "clicks" onto the active tab, like a real LEGO stud sitting proud on top
+   of the brick that just got placed — reinforces the LEGO metaphor without cluttering the
+   (already busy) tab label itself. studPop plays once each time a tab (re)gains .active — a
+   brief scale-in "snap" that sells the click-into-place feel instead of the stud just silently
+   appearing.
+   Previously this was a pair of small (~8px) flat dots rendered as soft radial-gradient discs —
+   at that size, on a dark panel background, they read as stray blurry pixels rather than a
+   deliberate LEGO stud (the point that prompted this rewrite). A single larger (16px) stud with
+   a glossy highlight + dark outline + drop shadow reads as an actual raised 3D plastic nub at a
+   glance, in either theme, regardless of which tab colour is behind it. */
+@keyframes studPop {
+  0%   { transform: translateX(-50%) scale(0.3); opacity: 0; }
+  55%  { transform: translateX(-50%) scale(1.3); opacity: 1; }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+.tab.active::before {
+  content: "";
+  position: absolute;
+  top: -8px;    /* half the stud's own 16px height — exactly 50% above/50% inside the tab's top edge */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  animation: studPop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+  background: radial-gradient(circle at 34% 28%, #ffffff, #e3e7ee 45%, #b9c1cf 78%);
+  border: 1.5px solid rgba(20, 24, 32, 0.55);
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.35), inset 0 -2px 2px rgba(0, 0, 0, 0.18);
+}
+.tab:hover { filter: brightness(1.05); transform: translateY(-1px); }
+/* Lucide icons (lucide-react — see THIRD_PARTY_NOTICES.md) replacing the old per-OS-inconsistent
+   emoji glyphs. vertical-align: -3px nudges the icon's optical centre onto the text baseline —
+   an inline SVG's own box otherwise sits a few px low next to text at this size. */
+.tab .tab-icon { vertical-align: -3px; }
+/* Topic icons (Ruler, Target, Palette, Gamepad2, ...) pick up the active tab's own colour via
+   --panel-accent (set per data-colour on .panel-scroll above) instead of a flat neutral grey —
+   the tab bar's colour identity carrying into its own content. .warn-icon (every AlertTriangle —
+   see App.tsx's data-colour comment) overrides back to --warn: colour-coding "this needs
+   attention" by whichever tab happens to be open would undermine the one colour meant to always
+   mean the same thing. Higher specificity (two classes) wins over the plain rule above it. */
+.inline-icon { vertical-align: -2px; color: var(--panel-accent); }
+.inline-icon.warn-icon { color: var(--warn); }
+/* Icon-only buttons (Modal's ✕, DeviceNameBadge's cancel, the gamepad-modal toggle) get
+   symmetric padding instead of the button default's wider horizontal padding — with the base
+   button now a full 999px pill (see button{} above), asymmetric padding on a single-glyph button
+   rendered as a squashed oval rather than a clean circle like .theme-toggle. */
+button.icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 7px; }
+button.icon-btn.sm { padding: 5px; }
+button.icon-btn.xs { padding: 4px; }
+.icon-btn-label { display: inline-flex; align-items: center; gap: 6px; }
+.tab.active {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+  transform: translateY(-3px);   /* "popped up" like a brick just placed on the shelf */
+}
+:root[data-theme="light"] .tab { color: var(--text); }
+:root[data-theme="light"] .tab.active { color: #fff; }
+.tab[data-colour="red"].active    { background: var(--lego-red); }
+.tab[data-colour="yellow"].active { background: var(--lego-yellow); color: #1c2431; }
+.tab[data-colour="blue"].active   { background: var(--lego-blue); }
+.tab[data-colour="green"].active  { background: var(--lego-green); }
+.tab[data-colour="orange"].active { background: var(--lego-orange); }
+.tab[data-colour="azure"].active  { background: var(--lego-azure); }
+.tab[data-colour="teal"].active   { background: var(--lego-teal); }
+
+/* A smaller, embedded tab strip reusing .tab's exact pill/stud styling — the sensor type filter
+   and the per-sensor picker in SensorConfigForm both use this, so "this is a selector, click one"
+   reads identically to the main tab bar instead of introducing a second visual language for the
+   same idea one level down. Needs its own top padding (unlike .tabbar, which gets that space for
+   free from the header's own layout) so an active tab's stud — .tab.active::before, positioned
+   half above the tab's own top edge — has room to render instead of getting clipped by whatever
+   sits directly above it in the card. */
+.subtabbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 10px;
+  margin-bottom: 14px;
+}
+.subtabbar .tab { font-size: 13px; padding: 7px 14px; }
+
+/* Each tab's icon picks up its own LEGO colour at rest — restores the "creative kids colouring"
+   the tab bar had with the old per-tab emoji (each glyph carried its own fixed colour regardless
+   of state) before it moved to Lucide's flat currentColor line icons, which otherwise leaves
+   every *inactive* tab's icon the same neutral --text grey until it's clicked. Scoped to
+   :not(.active) — the active tab already gets a full LEGO-colour pill background (above), where
+   the icon needs to stay white/dark-navy (set by .tab.active's own `color`) for contrast, not
+   tinted to the same colour as its own background. */
+.tab[data-colour="red"]:not(.active)    .tab-icon { color: var(--lego-red); }
+.tab[data-colour="yellow"]:not(.active) .tab-icon { color: var(--lego-yellow); }
+.tab[data-colour="blue"]:not(.active)   .tab-icon { color: var(--lego-blue); }
+.tab[data-colour="green"]:not(.active)  .tab-icon { color: var(--lego-green); }
+.tab[data-colour="orange"]:not(.active) .tab-icon { color: var(--lego-orange); }
+.tab[data-colour="azure"]:not(.active)  .tab-icon { color: var(--lego-azure); }
+.tab[data-colour="teal"]:not(.active)   .tab-icon { color: var(--lego-teal); }
+
+/* ---- Main content: the only thing that scrolls ---- */
+.app-main { flex: 1 1 auto; min-height: 0; display: flex; }
+.panel-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px 40px;
+  --panel-accent: var(--muted);   /* fallback — overridden per active tab below */
+}
+.panel-scroll[data-colour="red"]    { --panel-accent: var(--lego-red); }
+.panel-scroll[data-colour="yellow"] { --panel-accent: var(--lego-yellow); }
+.panel-scroll[data-colour="blue"]   { --panel-accent: var(--lego-blue); }
+.panel-scroll[data-colour="green"]  { --panel-accent: var(--lego-green); }
+.panel-scroll[data-colour="orange"] { --panel-accent: var(--lego-orange); }
+.panel-scroll[data-colour="azure"]  { --panel-accent: var(--lego-azure); }
+.panel-scroll[data-colour="teal"]   { --panel-accent: var(--lego-teal); }
+.welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 20px;
+  text-align: center;
+}
+.welcome .bricks { display: flex; gap: 6px; }
+.welcome .bricks span {
+  width: 26px;
+  height: 34px;
+  border-radius: 6px;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.15);
+}
+.welcome .bricks span:nth-child(1) { background: var(--lego-red); }
+.welcome .bricks span:nth-child(2) { background: var(--lego-yellow); }
+.welcome .bricks span:nth-child(3) { background: var(--lego-blue); }
+.welcome .bricks span:nth-child(4) { background: var(--lego-green); }
+.welcome .bricks span:nth-child(5) { background: var(--lego-orange); }
+.welcome h2 { font-family: var(--font-heading); margin: 0; font-size: 22px; font-weight: 600; }
+.welcome p { margin: 0; color: var(--muted); max-width: 420px; }
+/* Buttons default to inline-block, so a leading emoji (taller/differently-anchored than the text
+   baseline) shifts the whole line box instead of centering — visible next to a plain-text button
+   like "Scan for device" sitting right beside "🧪 Try demo mode". Flex centering fixes both the
+   icon/text vertical alignment and the small height mismatch between the two buttons. */
+.welcome .card button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+
+.app-footer {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  padding: 4px 24px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.card-head h2 {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* A tiny 2-stud accent before every card title — a light, consistent LEGO identity touch that
+   doesn't compete with the actual content below it. */
+.card-head h2::before {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 7px;
+  background:
+    radial-gradient(circle at 4px 3.2px, var(--accent) 3px, transparent 3.2px),
+    radial-gradient(circle at 12px 3.2px, var(--accent) 3px, transparent 3.2px);
+  opacity: 0.6;
+}
+
+/* Every button now shares the tab bar's shape/font/hover language — full pill, Fredoka, a small
+   lift on hover — instead of only .tab and .primary having it and everything else (Teach/Edit/
+   Reset/Remove, etc.) staying an 8px-radius system-font rectangle next to it. */
+button {
+  font: inherit;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 9px 16px;
+  cursor: pointer;
+  transition: filter 0.15s, background 0.15s, transform 0.12s, box-shadow 0.15s;
+}
+button:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+button:active:not(:disabled) { transform: translateY(0); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.sm { padding: 6px 12px; font-size: 13px; }
+button.xs { padding: 3px 9px; font-size: 12px; }
+button.primary { background: var(--accent); color: #04121f; }
+button.ghost { background: transparent; border-color: var(--line); color: var(--text); }
+button.ghost:hover:not(:disabled) { background: var(--panel-2); }
+button.danger { color: var(--danger); border-color: #3a2530; }
+
+/* Rounded "toy brick" corners (10px — noticeably softer than the old 6px rectangle, short of the
+   buttons/tabs' full 999px pill since that reads oddly on a wide select/number box) plus a
+   thicker 1.5px border for the same chunkier, more tactile feel the rest of the kid-theme UI
+   already has. Focus ring picks up --panel-accent (the active tab's own colour, see
+   .panel-scroll[data-colour] above) instead of a fixed blue, so a focused field visibly belongs
+   to whichever tab it's in. */
+select, input[type="text"], input[type="number"], textarea {
+  background: var(--panel-3);
+  border: 1.5px solid var(--line);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  min-height: var(--control-h);
+  box-sizing: border-box;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+textarea { min-height: 0; }
+select:focus, input[type="text"]:focus, input[type="number"]:focus, textarea:focus {
+  outline: none;
+  border-color: var(--panel-accent, var(--accent));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--panel-accent, var(--accent)) 25%, transparent);
+}
+
+.polling-cap-select {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.polling-cap-select:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Custom checkbox — the OS-native checkbox (different size/style per browser/platform) replaced
+   with a rounded square matching the toggle switch's LEGO-stud language. Checked state also
+   picks up --panel-accent, same as focus rings above, so every themed control (checkbox, toggle,
+   focused field, topic icon) agrees on "this tab's colour" as a single source of truth.
+   Checked shows the *same* glossy stud graphic as an active tab (.tab.active::before) rather
+   than a plain checkmark — a flat colour swap alone read ambiguously (a kid can't always tell
+   "filled in" apart from "just a different colour square" at a glance); a stud popping up reads
+   unambiguously as "this one's clicked in," reusing a shape they already recognise from the tab
+   bar instead of introducing a second, different "on" symbol. */
+@keyframes studPopCenter {
+  0%   { transform: scale(0.3); opacity: 0; }
+  55%  { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: var(--control-h);
+  height: var(--control-h);
+  min-width: var(--control-h);
+  border-radius: 7px;
+  border: 2px solid var(--line);
+  background: var(--panel-3);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  flex: 0 0 auto;
+  vertical-align: middle;
+  transition: background 0.15s, border-color 0.15s;
+}
+input[type="checkbox"]::before {
+  content: "";
+  /* calc() off --control-h, not a percentage — a percentage here resolves against the grid
+     item's own auto-sized track (place-content:center doesn't stretch it), which collapsed to
+     ~2px (basically just the pseudo-element's own border) instead of the intended stud size. */
+  width: calc(var(--control-h) * 0.62);
+  height: calc(var(--control-h) * 0.62);
+  border-radius: 50%;
+  transform: scale(0);
+  transform-origin: center;
+  background: radial-gradient(circle at 34% 28%, #ffffff, #e3e7ee 45%, #b9c1cf 78%);
+  border: 1.5px solid rgba(20, 24, 32, 0.55);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 -1px 1px rgba(0, 0, 0, 0.18);
+  box-sizing: border-box;
+  transition: transform 0.12s ease-in-out;
+}
+input[type="checkbox"]:checked {
+  background: var(--panel-accent, var(--accent));
+  border-color: var(--panel-accent, var(--accent));
+}
+input[type="checkbox"]:checked::before {
+  transform: scale(1);
+  animation: studPopCenter 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+input[type="checkbox"]:disabled { opacity: 0.5; cursor: not-allowed; }
+input[type="checkbox"]:focus-visible { outline: 2px solid var(--panel-accent, var(--accent)); outline-offset: 2px; }
+
+.row { display: flex; align-items: center; gap: 14px; }
+.row.gap { gap: 8px; }
+.meta { color: var(--muted); font-size: 14px; }
+.muted { color: var(--muted); }
+/* Generic "connected/good" status text colour — used bare (e.g. GamepadCard's connection
+   line), not just the narrower .scan-group-head/.reading scoped variants below. Without this,
+   className="ok" on its own had no matching rule and fell through to the default text colour
+   (looked black/plain instead of green — indistinguishable from "not connected" at a glance). */
+.ok { color: var(--accent-2); }
+.warn {
+  background: #2a2114;
+  border: 1px solid #4a3a1c;
+  color: var(--warn);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+:root[data-theme="light"] .warn { background: #fff3de; border-color: #f0d9a8; }
+
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot.on { background: var(--accent-2); box-shadow: 0 0 8px var(--accent-2); }
+.dot.off { background: #3a4250; }
+
+/* Scan table */
+table.grid { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.grid th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 500;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+table.grid td { padding: 8px; border-bottom: 1px solid var(--line); }
+
+/* Scan groups (per mux / direct / other) */
+.scan-groups { display: flex; flex-direction: column; gap: 14px; }
+.scan-group {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+.scan-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line);
+  box-shadow: inset 3px 0 0 var(--lego-green);
+  font-size: 14px;
+}
+.scan-group-head .ok { color: var(--accent-2); font-size: 13px; }
+.scan-group-head .count { color: var(--muted); font-size: 13px; margin-left: auto; }
+.scan-group table.grid { margin: 0; }
+.scan-group table.grid td { padding: 7px 12px; }
+.scan-group table.grid tr:last-child td { border-bottom: none; }
+.chcell { color: var(--accent); font-variant-numeric: tabular-nums; width: 64px; }
+/* The single most-used "secondary text" class in the app — hint paragraphs, field descriptions,
+   sensor/type labels in tables, warnings-adjacent notes. Was 13px; bumped to 14px to match the
+   Field-label and checkbox fixes above, so the *bulk* of what a kid actually reads on any given
+   page (not just headings/buttons) sits at one consistent, comfortable size instead of most of
+   the page reading a size smaller than its buttons and headings. */
+.muted.sm { font-size: 14px; padding: 8px 12px; }
+
+.tag {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+.tag.i2c { color: var(--lego-blue); border-color: var(--lego-blue); }
+.tag.spi { color: var(--lego-green); border-color: var(--lego-green); }
+.tag.uart { color: var(--lego-orange); border-color: var(--lego-orange); }
+
+/* Sensor editor */
+.sensor {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.sensor-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.sensor-top .name {
+  flex: 1;
+  min-width: 120px;
+  background: var(--panel-3);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-weight: 600;
+}
+.check { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
+
+.fields, .recipe { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+.recipe {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+.recipe-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--lego-green);
+  align-self: center;
+}
+.field { display: flex; flex-direction: column; gap: 4px; }
+/* Every Field label across every form — "type", "convert", "poll_ms", "range", "invert", ... —
+   was 11px, distinctly smaller than the rest of the UI's text and a real readability problem for
+   kids. Bumped to match .muted.sm's 14px below, so a label reads as comfortably as the value/
+   hint text sitting right next to it instead of looking like fine print. */
+.field span { font-size: 14px; color: var(--muted); }
+/* This used to duplicate (and, being more specific, silently override) the general select/input
+   rule above with its own older styling — 6px corners, 1px border, 13px text — so every
+   Field-wrapped input (the vast majority: type/convert/poll_ms/LED/etc. on every sensor) never
+   actually got the rounded "toy brick" corners, thicker border, or larger 14px text from that
+   rule. Only field-specific sizing needs to live here now. */
+.field input, .field select { min-width: 70px; }
+.field input[type="number"] { width: 90px; }
+.field.inline { flex-direction: row; align-items: center; gap: 6px; }
+.field.inline input { width: 52px; }
+
+.values-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+/* Colour palette editor: bordered sub-sections (mirrors .scan-group) instead of one long
+   flat, ad-hoc-styled column — palette table, colour wheel, white balance, filters each get
+   their own clearly separated card. */
+/* Two-column section layout on wide screens: the palette spans the full width (its rows are
+   themselves a responsive grid), then the wheel / live spectrum / white balance / filters
+   sections pair up side-by-side instead of each stretching a mostly-empty full-width card. */
+.colour-editor {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+  align-items: start;
+  gap: 14px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+  width: 100%;
+}
+.colour-editor > .colour-section:first-child { grid-column: 1 / -1; }
+.colour-section {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  padding: 12px 14px;
+}
+.colour-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.colour-section-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--lego-green);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.colour-subtitle {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 10px 0 6px;
+}
+
+/* One grid shared by every colour row so swatch/name/id/status/action columns line up,
+   whether or not a given row currently has a taught swatch to show. */
+/* Palette entries flow into as many columns as fit — the 12 standard colours land in a few
+   rows instead of one mostly-empty full-width row each (which forced lots of scrolling). An
+   entry with its ref editor open spans all columns for slider room.
+   The 380px minimum used to be narrower than a row's own real content (34px swatches + 90px
+   name + 56px id + 66px status + 3 auto-width buttons + 6 gaps comes to ~460-490px) — a grid
+   track can't shrink its content below that, so it was forced wider than the 380px auto-fill had
+   planned for, and the next entry's column ended up rendering on top of it (the "overlap" this
+   fixes). 480px matches what a row actually needs; min-width:0 on the item/row is a safety net
+   so a long custom colour name can still ellipsis/wrap instead of forcing another blowout. */
+.colour-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+  gap: 0 24px;
+}
+.colour-entry { min-width: 0; }
+.colour-entry.open { grid-column: 1 / -1; }
+.colour-row {
+  display: grid;
+  grid-template-columns: 34px minmax(70px, 1fr) 56px 66px auto auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.colour-row > span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.colour-swatches { display: flex; gap: 3px; }
+.colour-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid #555;
+  display: inline-block;
+}
+.colour-swatch.placeholder { border-style: dashed; opacity: 0.25; }
+.colour-ref-editor {
+  margin: 4px 0 6px 42px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 360px;
+}
+
+.colour-wheel-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.colour-hover-panel {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.calib-rows { display: flex; flex-direction: column; gap: 2px; max-width: 360px; }
+.calib-row { display: flex; align-items: center; gap: 10px; }
+.calib-row .label { min-width: 70px; color: var(--muted); font-size: 14px; }
+.calib-row input[type="range"] { flex: 1; min-width: 100px; }
+.calib-row .value { min-width: 50px; text-align: right; color: var(--muted); font-size: 14px; }
+
+/* Dashboard */
+.reading {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid #3a4250;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.reading.ok { border-left-color: var(--lego-green); }
+.reading.bad { border-left-color: var(--danger); }
+.reading.idle { opacity: 0.7; }
+.reading-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.values { display: flex; flex-direction: column; gap: 6px; }
+.value { display: flex; justify-content: space-between; align-items: baseline; }
+.vn { color: var(--muted); font-size: 13px; }
+.vv { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.reading-foot { display: flex; justify-content: space-between; font-size: 12px; margin-top: 10px; color: var(--muted); }
+
+/* Live polling timeline: a single grid shared by every sensor, so every channel's chart column
+   lines up at the same width. The label cell (the sensor's live-value reading card) spans one
+   grid row per channel the sensor has (via inline gridRow), so it sits beside all of that
+   sensor's stacked channel charts. */
+.timeline-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  column-gap: 14px;
+  row-gap: 10px;
+}
+/* Multi-column live-data layout: each column stacks one or more blocks (a block is either the
+   whole sensor list, or one sensor-category group when "group by type" is on), each block with
+   its own independent label+chart grid so column widths stay consistent within a column. */
+.timeline-columns {
+  display: grid;
+  column-gap: 24px;
+  align-items: start;
+}
+.timeline-column {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+.timeline-block { min-width: 0; }
+.timeline-group-heading {
+  margin: 0 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+/* A sensor's label cell only needs as much height as its own content (reorder buttons + reading
+   card), but the grid row it sits in is as tall as ALL of that sensor's stacked channel charts
+   (gridRow: span N in Dashboard.tsx) — a sensor with many channels (m5_8angle: 9, gamepad: 8)
+   gets a cell far taller than its content, so without sticking, the sensor name/label sits at
+   the top of that tall cell and scrolls out of view long before you've scrolled past its last
+   chart. Sticky keeps the label in view (pinned to the scroll container's top) for exactly as
+   long as any part of its channel block is still on screen. */
+.timeline-label-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  align-self: start;
+  background: var(--panel);
+  z-index: 1;
+}
+.timeline-chart-cell { min-width: 0; }
+.timeline-chart-cell.first { border-top: 1px solid var(--line); padding-top: 4px; }
+.timeline-reorder {
+  display: flex;
+  gap: 4px;
+}
+.timeline-reorder button { padding: 2px 6px; font-size: 10px; line-height: 1; }
+.timeline-meta { color: var(--muted); font-size: 12px; }
+.timeline-placeholder {
+  height: 88px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+}
+
+.log { color: var(--muted); }
+.log summary { cursor: pointer; font-size: 14px; padding: 6px 0; }
+.log pre {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 180px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ---- Word-block view (LEGO emitter card) ---- */
+.blocks-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: var(--panel-2);
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+.hat-block, .snap-block {
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+}
+.hat-block { background: var(--lego-orange); border-radius: 16px 16px 10px 10px; }
+.loop-block {
+  border: 3px dashed var(--lego-azure);
+  border-radius: 10px;
+  padding: 10px;
+  margin-left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.snap-block { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.snap-block .reporter {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-weight: 800;
+}
+.snap-block.disabled {
+  background: var(--panel-3) !important;
+  color: var(--muted);
+  text-decoration: line-through;
+  box-shadow: none;
+  border: 1px dashed var(--line);
+}
+.snap-block[data-colour="id"]       { background: var(--lego-blue); }
+.snap-block[data-colour="reflect"]  { background: var(--lego-green); }
+.snap-block[data-colour="red"]      { background: var(--lego-red); }
+.snap-block[data-colour="green"]    { background: #2e8b3d; }
+.snap-block[data-colour="blue"]     { background: #1d5fb4; }
+.snap-block[data-colour="clear"]    { background: var(--panel-3); }
+
+.view-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+.view-tabs button.active { background: var(--accent); color: #04121f; font-weight: 700; }
+
+/* Operators-category maths blocks (÷, mod, floor ▾ of) — mirrors the Pybricks/SPIKE Blockly
+   palette: rounded green pill, white oval "sockets" that can nest another block or hold a
+   plain number. Rendered inline so a chain like floor(x / 4) mod 16 reads left-to-right. */
+.op-block {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  background: #2fa84f;
+  color: #fff;
+  border-radius: 14px;
+  padding: 5px 10px;
+  font-weight: 700;
+  font-size: 13px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
+  vertical-align: middle;
+  max-width: 100%;
+}
+.op-word { opacity: 0.9; }
+.op-dropdown {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+.op-socket {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  background: #fff;
+  color: #1c2431;
+  border-radius: 12px;
+  padding: 3px 8px;
+  min-width: 18px;
+  justify-content: center;
+  font-weight: 700;
+  max-width: 100%;
+}
+.reporter-block {
+  background: #06a2d6;
+  color: #fff;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-weight: 700;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.var-block {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  background: var(--lego-orange);
+  color: #fff;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.2);
+}
+.var-name {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+/* Binary-maths explainer (LegoConfigForm's BinaryMathsView) — each field's value→raw arithmetic
+   plus its raw number spelled out one bit at a time, grouped in 4s (a nibble) so it's countable
+   at a glance instead of one long undifferentiated digit string. */
+.bit-maths { display: flex; flex-direction: column; gap: 14px; }
+.bit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border-radius: 10px;
+  border: 1px solid var(--line);
+}
+.bit-row-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.bit-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.bit-group { display: inline-flex; gap: 2px; }
+.bit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 22px;
+  border-radius: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 700;
+}
+/* Each bit is tinted by which RGBI channel it physically belongs to (same red/green/blue as the
+   Word-blocks reporter blocks above; I/intensity has no LEGO colour of its own, so a neutral
+   tint) — an "on" bit is solid, an "off" bit is just an outline in that colour, so you can trace
+   any 1/0 in a field's strip straight back to which of the hub's four received numbers it's part
+   of, matching the R/G/B/I rows in the "whole word" summary below it. */
+.bit-off { background: var(--panel-3); color: var(--muted); }
+.bit-on.chan-R  { background: var(--lego-red);   color: #fff; }
+.bit-on.chan-G  { background: var(--lego-green); color: #fff; }
+.bit-on.chan-B  { background: var(--lego-blue);  color: #fff; }
+.bit-on.chan-I  { background: #aab4c2; color: #1c2431; }
+.bit-off.chan-R { border: 1px solid var(--lego-red); }
+.bit-off.chan-G { border: 1px solid var(--lego-green); }
+.bit-off.chan-B { border: 1px solid var(--lego-blue); }
+.bit-off.chan-I { border: 1px solid #aab4c2; }
+
+/* In-app modal (Modal.tsx) — replaces browser confirm()/prompt() dialogs. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  width: min(440px, calc(100vw - 32px));
+  padding: 14px 16px;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.modal-head h3 { font-family: var(--font-heading); margin: 0; font-size: 15px; font-weight: 600; }
+.modal-body { font-size: 14px; }
+.modal-body label.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* ---- BusyOverlay: blocking full-screen overlay during a save/import (BusyOverlay.tsx) ---- */
+.busy-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100; /* above .modal-overlay's 1000 — a save can be confirmed from inside a modal */
+}
+.busy-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  padding: 28px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.busy-mascot { animation: busy-bob 1.1s ease-in-out infinite; }
+.busy-label { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 2px; }
+.busy-label .dot { animation: busy-dot 1.2s ease-in-out infinite; }
+.busy-label .dot:nth-child(2) { animation-delay: 0.15s; }
+.busy-label .dot:nth-child(3) { animation-delay: 0.3s; }
+.busy-hint { font-size: 12px; color: var(--muted); }
+
+@keyframes busy-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-8px) rotate(2deg); }
+}
+@keyframes busy-dot {
+  0%, 80%, 100% { opacity: 0.25; }
+  40% { opacity: 1; }
+}
+
+/* ---- Toggle: a pill switch styled like a stud sliding along a brick — see Toggle.tsx ---- */
+.toggle-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.toggle-row.disabled { cursor: not-allowed; opacity: 0.5; }
+/* Sized off the same --control-h every input/select/checkbox uses (was a fixed 24px against
+   inputs' ~31px, a visible mismatch when a Toggle sits in a Field next to a NumField/select —
+   see SensorConfigForm's m5_8angle "invert" row) so a Toggle now sits exactly as tall as its
+   neighbours instead of looking a size smaller. */
+.toggle {
+  position: relative;
+  width: 46px;
+  height: var(--control-h);
+  border-radius: 999px;
+  background: var(--panel-3);
+  border: 1.5px solid var(--line);
+  cursor: pointer;
+  transition: background 0.15s;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+}
+.toggle.on { background: var(--accent-2); border-color: var(--accent-2); }
+.toggle-stud {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc(var(--control-h) - 8px);
+  height: calc(var(--control-h) - 8px);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s;
+}
+.toggle.on .toggle-stud { transform: translateX(16px); }
+.toggle-label { font-size: 14px; }
+
+/* ---- HelpTip: inline "?" button + expandable kid-friendly explanation — see HelpTip.tsx ---- */
+.help-tip { position: relative; display: inline-flex; text-transform: none; letter-spacing: normal; }
+.help-tip-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.help-tip-btn:hover { background: var(--accent); color: #04121f; border-color: var(--accent); }
+.help-tip-box {
+  position: absolute;
+  z-index: 20;
+  top: 24px;
+  left: 0;
+  width: min(280px, 70vw);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  padding: 12px 30px 12px 14px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.help-tip-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---- Settings: unified debug-tool rows — see SettingsForm.tsx ---- */
+.debug-rows { display: flex; flex-direction: column; gap: 2px; }
+.debug-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.debug-row:last-child { border-bottom: none; }
+.debug-row-icon { flex: 0 0 auto; width: 26px; display: flex; align-items: center; justify-content: center; color: var(--panel-accent); }
+.debug-row-text { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.debug-row-text b { font-size: 14px; }
+
+/* ---- Guide tab — see GuideTab.tsx ---- */
+.guide-card { background: var(--panel); }
+.guide-intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+.guide-sections { display: flex; flex-direction: column; gap: 8px; }
+.guide-section {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+.guide-section.open { border-color: var(--lego-teal); }
+.guide-section-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  text-align: left;
+}
+.guide-section-emoji { font-size: 20px; }
+.guide-section-title { flex: 1; }
+.guide-section-chevron { color: var(--muted); font-size: 11px; }
+.guide-section-body {
+  padding: 0 14px 16px 46px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.guide-tip {
+  background: rgba(255, 213, 0, 0.12);
+  border: 1px solid rgba(255, 213, 0, 0.35);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+/* ---- Welcome screen: Brix the mascot replacing the plain brick row ---- */
+.welcome .mascot-wrap { display: flex; justify-content: center; }

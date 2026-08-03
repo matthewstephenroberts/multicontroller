@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>MultiController — User Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap');
+
+  @page { size: A4; margin: 18mm 16mm; }
+  @page :first { margin: 0; }
+
+  * {
+    box-sizing: border-box;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color-adjust: exact;
+  }
+
+  :root {
+    --bg: #0e1116;
+    --bg-light: #161b22;
+    --text: #e6edf3;
+    --muted: #8b97a7;
+    --accent: #4ea8ff;
+    --accent-2: #38d39f;
+    --warn: #ffb454;
+    --danger: #ff6b6b;
+    --lego-red: #d5192a;
+    --lego-yellow: #ffd500;
+    --lego-blue: #0059ab;
+    --lego-azure: #06a2d6;
+    --lego-green: #00a651;
+    --lego-orange: #ff8200;
+    --lego-teal: #00aad4;
+    --font-heading: "Fredoka", sans-serif;
+    --font-body: "Nunito", sans-serif;
+  }
+
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: var(--font-body);
+    color: #1c2431;
+    margin: 0;
+    font-size: 10pt;
+    line-height: 1.5;
+    background: white;
+  }
+
+  /* Printer-friendly cover: a full-bleed dark gradient background looks great on screen but is
+     expensive and slow to print (an entire A4 page of solid dark ink/toner on any home or
+     classroom printer). White background with a slim coloured accent band keeps the same brand
+     identity — logo colours, LEGO-style badge, Brix mascot — while using a small fraction of the
+     ink a full-page wash would. */
+  .cover {
+    width: 210mm;
+    height: 297mm;
+    page-break-after: always;
+    background: #ffffff;
+    color: #1c2431;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cover::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 10mm;
+    background: linear-gradient(90deg, #0c4a63 0%, #4ea8ff 50%, #38d39f 100%);
+  }
+
+  .cover-content {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    /* space-between across exactly 3 blocks (header / hero / footer) rather than relying on a
+       nested flex:1 percentage-height item — that approach left an uneven gap collecting only
+       below the hero on A4's taller-than-wide page, instead of the page's leftover vertical
+       space being shared evenly around the hero the way it should. */
+    justify-content: space-between;
+    height: 100%;
+    padding: 25mm 20mm;
+  }
+
+  .cover-header > *:first-child { margin-top: 0; }
+
+  .cover-badge {
+    display: inline-block;
+    width: fit-content;
+    padding: 8mm 12mm;
+    background: rgba(79, 173, 255, 0.08);
+    border: 1px solid rgba(79, 173, 255, 0.5);
+    border-radius: 8px;
+    font-size: 11pt;
+    font-weight: 600;
+    color: #17667f;
+    font-family: var(--font-heading);
+    letter-spacing: 1px;
+    margin-bottom: 12mm;
+  }
+
+  .cover h1 {
+    font-family: var(--font-heading);
+    font-size: 48pt;
+    font-weight: 700;
+    margin: 0 0 8mm;
+    line-height: 1.1;
+    color: #0c4a63;
+    letter-spacing: -1px;
+  }
+
+  .cover-tagline {
+    font-size: 16pt;
+    line-height: 1.6;
+    color: #3a4a56;
+    margin: 0 0 20mm;
+    max-width: 150mm;
+    font-weight: 500;
+  }
+
+  .cover-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .brix-mascot {
+    width: 80mm;
+    height: 80mm;
+  }
+
+  .cover-features {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12mm;
+    margin-bottom: 15mm;
+  }
+
+  .feature-item {
+    display: flex;
+    gap: 6mm;
+    font-size: 10pt;
+  }
+
+  .feature-check {
+    flex-shrink: 0;
+    width: 5mm;
+    height: 5mm;
+    background: #38d39f;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #0c4a63;
+    font-weight: 700;
+    font-size: 8pt;
+  }
+
+  .feature-text {
+    color: #2d3b47;
+    line-height: 1.4;
+  }
+
+  .cover-footer {
+    border-top: 1px solid #d7dee1;
+    padding-top: 8mm;
+    font-size: 9pt;
+    color: #6b7785;
+  }
+
+  h1 {
+    font-family: var(--font-heading);
+    font-size: 18pt;
+    color: #0c4a63;
+    border-bottom: 3px solid #4ea8ff;
+    padding-bottom: 3mm;
+    margin: 0 0 5mm;
+    page-break-before: always;
+    font-weight: 700;
+  }
+  h1.no-break { page-break-before: auto; }
+
+  h2 {
+    font-family: var(--font-heading);
+    font-size: 13pt;
+    color: #0c4a63;
+    margin: 7mm 0 3mm;
+    font-weight: 700;
+  }
+
+  h3 {
+    font-family: var(--font-heading);
+    font-size: 11pt;
+    color: #17667f;
+    margin: 5mm 0 2mm;
+    font-weight: 600;
+  }
+
+  p { margin: 0 0 3mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5mm; }
+  li { margin-bottom: 1.5mm; }
+
+  code, .mono {
+    font-family: "Monaco", "Menlo", "Consolas", monospace;
+    font-size: 8.7pt;
+    background: #f5f7fa;
+    border: 1px solid #d7dee1;
+    border-radius: 3px;
+    padding: 0 1.2mm;
+    color: #0c4a63;
+  }
+
+  pre {
+    background: #10222b;
+    color: #dbe9ee;
+    font-family: "Monaco", monospace;
+    font-size: 8.3pt;
+    padding: 4mm 5mm;
+    border-radius: 5px;
+    overflow-x: auto;
+    line-height: 1.5;
+    margin: 0 0 4mm;
+    border: 1px solid #1c3a4d;
+  }
+
+  pre code { background: none; border: none; color: inherit; padding: 0; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0 0 4mm;
+    font-size: 9pt;
+    border: 1px solid #d7dee1;
+  }
+
+  th, td {
+    border: 1px solid #d7dee1;
+    padding: 2mm 3mm;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    background: linear-gradient(to bottom, #f0f3f9, #eaf3f6);
+    color: #0c4a63;
+    font-weight: 700;
+  }
+
+  tr:nth-child(even) td { background: #f8fafb; }
+
+  .callout {
+    border-left: 5px solid #4ea8ff;
+    background: #eef8fa;
+    padding: 3mm 4mm;
+    border-radius: 0 4px 4px 0;
+    margin: 0 0 4mm;
+    font-size: 9.3pt;
+  }
+
+  .callout.warn {
+    border-left-color: #ffb454;
+    background: #fdf6e6;
+  }
+
+  .callout.danger {
+    border-left-color: #ff6b6b;
+    background: #fbeaea;
+  }
+
+  .callout b {
+    color: #0c4a63;
+    font-family: var(--font-heading);
+  }
+
+  .callout.warn b { color: #7a5c00; }
+  .callout.danger b { color: #7a1f1f; }
+
+  .step-list {
+    counter-reset: step;
+    list-style: none;
+    padding-left: 0;
+  }
+
+  .step-list > li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 9mm;
+    margin-bottom: 3mm;
+  }
+
+  .step-list > li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 6mm;
+    height: 6mm;
+    border-radius: 50%;
+    background: #4ea8ff;
+    color: #fff;
+    font-size: 8.5pt;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .toc { columns: 1; }
+  .toc ol { list-style: none; padding: 0; counter-reset: toc; }
+  .toc li { counter-increment: toc; margin-bottom: 2.5mm; font-size: 10pt; }
+  .toc li::before { content: counter(toc) ".  "; color: #4ea8ff; font-weight: 700; font-family: var(--font-heading); }
+
+  footer.pagefoot {
+    font-size: 7.5pt;
+    color: #999;
+    margin-top: 6mm;
+    border-top: 1px solid #ddd;
+    padding-top: 2mm;
+  }
+
+  .architecture-diagram {
+    margin: 5mm 0 8mm;
+    border: 1px solid #d7dee1;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(79, 173, 255, 0.03) 0%, rgba(56, 211, 159, 0.02) 100%);
+    padding: 4mm;
+  }
+
+  svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .screenshot-figure {
+    margin: 4mm 0 6mm;
+    page-break-inside: avoid;
+  }
+
+  .screenshot-figure img {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    border: 1px solid #d7dee1;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(12, 74, 99, 0.12);
+  }
+
+  .screenshot-figure figcaption {
+    margin-top: 2mm;
+    font-size: 8.5pt;
+    color: #6b7785;
+    text-align: center;
+    font-style: italic;
+  }
+
+  .device-mockup-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6mm;
+    margin: 4mm 0 6mm;
+  }
+
+  .device-mockup-grid .screenshot-figure {
+    margin: 0;
+    background: #0c1116;
+    border-radius: 8px;
+    padding: 3mm;
+  }
+
+  .device-mockup-grid .screenshot-figure img {
+    border-radius: 4px;
+    box-shadow: none;
+    border: none;
+  }
+
+  .device-mockup-grid figcaption {
+    color: #cfd8e0;
+    font-style: normal;
+    text-align: left;
+    line-height: 1.4;
+  }
+
+  .device-mockup-grid figcaption b {
+    display: block;
+    color: #fff;
+    font-family: var(--font-heading);
+    font-size: 9pt;
+    margin-bottom: 1mm;
+  }
+
+  /* Screen-only "page preview" look: at print time @page already renders every page at true A4
+     size, but viewed directly in a browser the fixed-mm .cover (and every other block, which
+     otherwise flows edge-to-edge at whatever width the window happens to be) doesn't read as an
+     A4 document at all — just a small box against blank white with no page framing. This gives
+     every element the same 178mm content column (matching A4's 16mm side @page margins) on a
+     neutral backdrop, so on-screen viewing matches what the exported PDF actually looks like. */
+  @media screen {
+    html { background: #d8dee4; }
+    body { background: transparent; }
+    .cover {
+      margin: 12mm auto;
+      box-shadow: 0 10px 40px rgba(12, 74, 99, 0.35);
+    }
+    body > *:not(.cover) {
+      max-width: 178mm;
+      margin-left: auto;
+      margin-right: auto;
+      background: #fff;
+      padding-left: 16mm;
+      padding-right: 16mm;
+    }
+    body > h1:not(.no-break) {
+      padding-top: 14mm;
+      box-shadow: 0 -1px 0 0 #d7dee1 inset;
+    }
+    footer.pagefoot { padding-bottom: 14mm; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== COVER ===================== -->
+<div class="cover">
+  <div class="cover-content">
+    <div class="cover-header">
+      <div class="cover-badge">🔧 SENSOR HUB FOR M5STACK</div>
+
+      <h1>MultiController</h1>
+
+      <p class="cover-tagline">
+        Configure any M5Stack Unit sensor in real time over Bluetooth LE — no reprogramming needed.
+        Powered by <strong>ESP32-S3</strong>.
+      </p>
+    </div>
+
+    <div class="cover-hero">
+      <div style="flex: 1;">
+        <div class="cover-features">
+          <div class="feature-item">
+            <div class="feature-check">✓</div>
+            <div class="feature-text">Live sensor dashboard</div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-check">✓</div>
+            <div class="feature-text">Teachable colour palette</div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-check">✓</div>
+            <div class="feature-text">LEGO® hub emulation</div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-check">✓</div>
+            <div class="feature-text">Bluetooth game controller</div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-check">✓</div>
+            <div class="feature-text">Onboard 1.14″ display</div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-check">✓</div>
+            <div class="feature-text">I2C sensors + Gamepad control</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Brix Mascot - scaled from firmware geometric definition -->
+      <svg viewBox="0 0 96 96" class="brix-mascot" xmlns="http://www.w3.org/2000/svg">
+        <!-- Legs -->
+        <rect x="34" y="76" width="10" height="16" fill="#3a4250"/>
+        <rect x="52" y="76" width="10" height="16" fill="#3a4250"/>
+
+        <!-- Body -->
+        <rect x="26" y="46" width="44" height="34" fill="#0059ab"/>
+
+        <!-- Arms -->
+        <rect x="26" y="46" width="9" height="26" fill="#ffd500"/>
+        <rect x="61" y="46" width="9" height="26" fill="#ffd500"/>
+
+        <!-- Head -->
+        <rect x="30" y="14" width="36" height="32" fill="#ffd500"/>
+
+        <!-- Head Stud (top) -->
+        <circle cx="48" cy="6" r="6" fill="#ffd500"/>
+
+        <!-- Eyes -->
+        <circle cx="40" cy="30" r="6" fill="#ffd500"/>
+        <circle cx="40" cy="30" r="3" fill="#1c2431"/>
+        <circle cx="56" cy="30" r="6" fill="#ffd500"/>
+        <circle cx="56" cy="30" r="3" fill="#1c2431"/>
+
+        <!-- Smile (mouth band) -->
+        <rect x="39" y="37" width="18" height="3" fill="#1c2431"/>
+
+        <!-- Belt (center circle on body) -->
+        <circle cx="48" cy="63" r="6" fill="#ffd500"/>
+      </svg>
+    </div>
+
+    <div class="cover-footer">
+      Works with AtomS3R and AtomS3 Lite · Firmware + Web App Reference<br/>
+      📖 Documentation: github.com/matthewstephenroberts/multicontroller · MIT License
+    </div>
+  </div>
+</div>
+
+<!-- ===================== TOC ===================== -->
+<h1 class="no-break">Contents</h1>
+<div class="toc">
+<ol>
+  <li>Overview — what MultiController is and how it works</li>
+  <li>Hardware — M5Stack board options</li>
+  <li>Getting started — flashing and running the web app</li>
+  <li>Connecting over Bluetooth LE</li>
+  <li>Wiring sensors and accessories</li>
+  <li>Configuring sensors</li>
+  <li>The onboard display</li>
+  <li>Colour sensors and palette calibration</li>
+  <li>LEGO® hub emulation</li>
+  <li>Bluetooth game controller bridge</li>
+  <li>GPIO / ADC pin sensors</li>
+  <li>Maintenance and troubleshooting</li>
+  <li>Appendix — sensor reference</li>
+</ol>
+</div>
+
+<!-- ===================== 1. OVERVIEW ===================== -->
+<h1>1. Overview</h1>
+<p><strong>MultiController</strong> turns an <strong>M5Stack AtomS3R or AtomS3 Lite</strong> into a flexible sensor hub whose sensor configuration is <strong>not hard-coded in firmware</strong> — you build it at runtime from a web app over Bluetooth Low Energy, and the device remembers it across reboots.</p>
+
+<h2>Why this exists: rescuing retired LEGO Education sets</h2>
+<p>LEGO Education makes great robotics kits, but eventually they get retired. The mechanical parts and the hub — the "brain" — still work fine, but if you lose or damage an original sensor, you're stuck: those sensors aren't sold anymore, and nobody's writing new drivers for a discontinued product line.</p>
+
+<p><strong>MultiController is a rescue kit.</strong> Instead of throwing away a perfectly good LEGO hub, you plug it into this device and give it brand-new modern sensors. The best part: the hub and your programs don't know anything changed. SPIKE code using <code>color_sensor.rgbi()</code> keeps working exactly the same — it just gets real data from an M5Stack sensor instead of the original LEGO one.</p>
+
+<p><strong>For the classroom, this changes everything:</strong></p>
+<ul>
+  <li>Swap a sensor between classes without touching any code</li>
+  <li>Let students experiment with different sensors without waiting for reprogramming</li>
+  <li>Teach data science and robotics with sensors that cost less than official LEGO parts</li>
+  <li>Keep a five-year-old LEGO set useful instead of sending it to landfill</li>
+</ul>
+
+<div class="callout">
+  <b>Bonus — stop running out of hub ports.</b> A LEGO SPIKE Prime hub only has 6 ports total, and a robot with 4 motors, a colour sensor, and a distance sensor already uses all of them. Because MultiController's LEGO port sees just <i>one</i> fake sensor that can carry multiple real sensor readings at once (colour + distance + 8-Angle knobs, for example), a design that would need 3 sensor ports can run on just 1 — freeing up the rest for motors.
+</div>
+
+<h2>What it does</h2>
+<ul>
+  <li><strong>Read I2C sensors</strong> (Colour, Distance, 8-Angle, Step16, etc.) with multiplexer support for up to 6 sensors, streaming live readings to a web dashboard and the onboard display.</li>
+  <li><strong>Classify colours</strong> with a teachable palette you calibrate to your lighting and materials.</li>
+  <li><strong>Emulate a LEGO® Powered Up Color Sensor</strong> so your SPIKE Prime or Pybricks program can read your custom sensors through the hub's own colour-sensor port.</li>
+  <li><strong>Map sensor values onto the hub's native Colour, Reflected light, and Red/Green/Blue/Intensity channels</strong> — the same modes a real LEGO colour sensor sends, so <code>color_sensor.color()</code>, <code>.reflection()</code>, and <code>.rgbi()</code> all work as expected.</li>
+  <li><strong>Pack multiple sensor readings into one 64-bit value</strong> — not just a 1-to-1 mapping. Several lower-resolution readings (say, an 8-bit distance and a 4-bit knob position) can share a single 16-bit RGBI channel, each occupying its own slice of bits. This doubles as a genuinely hands-on way to teach kids <strong>how binary and bit-packing work</strong>: the app shows exactly which bits belong to which reading, and how to pull a packed value back apart using either drag-and-drop <strong>Word Blocks</strong> in the SPIKE App or a few lines of <strong>Python</strong> — see section 9.</li>
+  <li><strong>Bridge a Bluetooth game controller</strong> (Xbox Series X|S) so a LEGO program can respond to controller buttons, sticks, and triggers.</li>
+  <li><strong>Support knob and switch controls</strong> — M5Stack 8-Angle Unit knobs and rotary switches send input to LEGO hub and dashboard.</li>
+</ul>
+
+<div class="callout">
+  <b>No coding needed.</b> Everything in this manual — adding sensors, calibration, wiring, controller pairing — is done from the web app. Firmware changes are only needed to add new sensor <i>drivers</i> or change pin assignments.
+</div>
+
+<h2>The architecture</h2>
+<table>
+  <tr><th>Component</th><th>Role</th></tr>
+  <tr><td><strong>M5Stack firmware</strong> (ESP32-S3)</td><td>Runs the sensor scheduler, Bluetooth LE service, display driver, LEGO emitter. Stores configuration in flash across power loss.</td></tr>
+  <tr><td><strong>Web app</strong> (Chrome/Edge)</td><td>Connects over Web Bluetooth, scans and configures sensors, displays live dashboard.</td></tr>
+  <tr><td><strong>Onboard display</strong> (1.14″ on AtomS3R)</td><td>Shows device status and live readings without needing the web app. Not available on AtomS3 Lite.</td></tr>
+</table>
+
+<!-- ===================== ARCHITECTURE DIAGRAM ===================== -->
+<div class="architecture-diagram">
+  <svg viewBox="0 0 950 310" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <!-- Colored arrow markers for each sensor/connection type -->
+      <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#d5192a"/>
+      </marker>
+      <marker id="arrow-yellow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#ffd500"/>
+      </marker>
+      <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#4ea8ff"/>
+      </marker>
+      <marker id="arrow-azure" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#06a2d6"/>
+      </marker>
+      <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#38d39f"/>
+      </marker>
+    </defs>
+
+    <!-- Input Sources (I2C Sensors + Gamepad) -->
+    <g>
+      <!-- Colour Sensor -->
+      <circle cx="70" cy="70" r="28" fill="#d5192a" stroke="#0c4a63" stroke-width="1.5"/>
+      <text x="70" y="68" text-anchor="middle" font-family="Nunito, sans-serif" font-size="9" font-weight="600" fill="#fff">Colour</text>
+      <text x="70" y="82" text-anchor="middle" font-family="Nunito, sans-serif" font-size="8" fill="#fff">Unit</text>
+    </g>
+
+    <g>
+      <!-- Distance Sensor -->
+      <circle cx="200" cy="70" r="28" fill="#ffd500" stroke="#0c4a63" stroke-width="1.5"/>
+      <text x="200" y="68" text-anchor="middle" font-family="Nunito, sans-serif" font-size="9" font-weight="600" fill="#0c4a63">Distance</text>
+      <text x="200" y="82" text-anchor="middle" font-family="Nunito, sans-serif" font-size="8" fill="#0c4a63">Unit</text>
+    </g>
+
+    <g>
+      <!-- Knob/Switch Control -->
+      <circle cx="70" cy="220" r="28" fill="#06a2d6" stroke="#0c4a63" stroke-width="1.5"/>
+      <text x="70" y="218" text-anchor="middle" font-family="Nunito, sans-serif" font-size="9" font-weight="600" fill="#fff">Knob</text>
+      <text x="70" y="232" text-anchor="middle" font-family="Nunito, sans-serif" font-size="8" fill="#fff">Switch</text>
+    </g>
+
+    <g>
+      <!-- Gamepad Control -->
+      <rect x="172" y="192" width="56" height="56" rx="6" fill="#38d39f" stroke="#0c4a63" stroke-width="1.5"/>
+      <text x="200" y="218" text-anchor="middle" font-family="Nunito, sans-serif" font-size="9" font-weight="600" fill="#0c4a63">Gamepad</text>
+      <text x="200" y="232" text-anchor="middle" font-family="Nunito, sans-serif" font-size="8" fill="#0c4a63">Xbox</text>
+    </g>
+
+    <!-- M5Stack Board (Center) -->
+    <g>
+      <rect x="350" y="55" width="140" height="140" rx="8" fill="rgba(79, 173, 255, 0.12)" stroke="#4ea8ff" stroke-width="2"/>
+      <text x="420" y="105" text-anchor="middle" font-family="Fredoka, sans-serif" font-size="12" font-weight="700" fill="#0c4a63">M5Stack</text>
+      <text x="420" y="122" text-anchor="middle" font-family="Nunito, sans-serif" font-size="10" fill="#17667f">AtomS3R/Lite</text>
+      <text x="420" y="138" text-anchor="middle" font-family="Nunito, sans-serif" font-size="8" fill="#8b97a7">I2C Hub</text>
+      <text x="420" y="152" text-anchor="middle" font-family="Nunito, sans-serif" font-size="7" fill="#8b97a7">+ Bluetooth</text>
+    </g>
+
+    <!-- Colored arrows from sensors to M5Stack (curved paths, staying outside boxes) -->
+    <!-- Colour Unit (red) - top arc, well above boxes -->
+    <path d="M 98 50 Q 180 10 350 65" stroke="#d5192a" stroke-width="2.5" fill="none" marker-end="url(#arrow-red)"/>
+    <text x="150" y="22" font-family="Nunito, sans-serif" font-size="8" fill="#d5192a" font-weight="600">I2C</text>
+
+    <!-- Distance Unit (yellow) - top arc, well above boxes -->
+    <path d="M 228 50 Q 280 12 365 62" stroke="#ffd500" stroke-width="2.5" fill="none" marker-end="url(#arrow-yellow)"/>
+    <text x="290" y="25" font-family="Nunito, sans-serif" font-size="8" fill="#ffd500" font-weight="600">I2C</text>
+
+    <!-- Knob/Switch (blue) - bottom arc, well below boxes -->
+    <path d="M 98 235 Q 180 280 350 175" stroke="#06a2d6" stroke-width="2.5" fill="none" marker-end="url(#arrow-azure)"/>
+    <text x="160" y="270" font-family="Nunito, sans-serif" font-size="8" fill="#06a2d6" font-weight="600">I2C</text>
+
+    <!-- Gamepad (green) - bottom arc, well below boxes -->
+    <path d="M 228 235 Q 290 280 365 180" stroke="#38d39f" stroke-width="2.5" fill="none" marker-end="url(#arrow-green)"/>
+    <text x="280" y="270" font-family="Nunito, sans-serif" font-size="8" fill="#38d39f" font-weight="600">BLE</text>
+
+    <!-- Web App (Right side) -->
+    <g>
+      <rect x="590" y="55" width="130" height="140" rx="8" fill="rgba(79, 173, 255, 0.12)" stroke="#4ea8ff" stroke-width="2"/>
+      <text x="655" y="105" text-anchor="middle" font-family="Fredoka, sans-serif" font-size="12" font-weight="700" fill="#0c4a63">Web App</text>
+      <text x="655" y="122" text-anchor="middle" font-family="Nunito, sans-serif" font-size="9" fill="#17667f">Chrome/Edge</text>
+      <text x="655" y="136" text-anchor="middle" font-family="Nunito, sans-serif" font-size="8" fill="#8b97a7">localhost</text>
+      <text x="655" y="150" text-anchor="middle" font-family="Nunito, sans-serif" font-size="7" fill="#8b97a7">Dashboard</text>
+    </g>
+
+    <!-- Bluetooth Connection to Web App (blue arrow, above boxes) -->
+    <path d="M 490 80 Q 540 45 590 75" stroke="#4ea8ff" stroke-width="2.5" fill="none" marker-end="url(#arrow-blue)"/>
+    <text x="525" y="55" text-anchor="middle" font-family="Nunito, sans-serif" font-size="9" font-weight="600" fill="#0c4a63">Bluetooth LE</text>
+
+    <!-- LEGO Hub Output -->
+    <g>
+      <rect x="800" y="75" width="120" height="100" rx="8" fill="rgba(213, 25, 42, 0.1)" stroke="#d5192a" stroke-width="2"/>
+      <text x="860" y="110" text-anchor="middle" font-family="Fredoka, sans-serif" font-size="11" font-weight="700" fill="#0c4a63">LEGO</text>
+      <text x="860" y="125" text-anchor="middle" font-family="Nunito, sans-serif" font-size="10" fill="#0c4a63">Hub</text>
+      <text x="860" y="140" text-anchor="middle" font-family="Nunito, sans-serif" font-size="8" fill="#8b97a7">LPF2 Port</text>
+      <text x="860" y="154" text-anchor="middle" font-family="Nunito, sans-serif" font-size="7" fill="#8b97a7">Emulation</text>
+    </g>
+
+    <!-- UART Connection to LEGO (red arrow, below boxes) -->
+    <path d="M 490 160 Q 600 220 800 145" stroke="#d5192a" stroke-width="2.5" fill="none" marker-end="url(#arrow-red)"/>
+    <text x="600" y="215" text-anchor="middle" font-family="Nunito, sans-serif" font-size="9" font-weight="600" fill="#d5192a">UART Protocol</text>
+
+    <!-- Future Scope Note -->
+    <g>
+      <rect x="350" y="245" width="400" height="50" rx="4" fill="rgba(255, 180, 84, 0.08)" stroke="#ffb454" stroke-width="1" stroke-dasharray="3,2"/>
+      <text x="550" y="263" text-anchor="middle" font-family="Nunito, sans-serif" font-size="9" font-weight="600" fill="#7a5c00">🔮 Future Scope</text>
+      <text x="550" y="280" text-anchor="middle" font-family="Nunito, sans-serif" font-size="8" fill="#7a5c00">SPI Sensors • UART Sensors • Motor Control</text>
+    </g>
+  </svg>
+</div>
+
+<!-- ===================== 2. HARDWARE ===================== -->
+<h1>2. Hardware — M5Stack Options</h1>
+
+<p>MultiController runs on either <strong>AtomS3R or AtomS3 Lite</strong>. Both use the same ESP32-S3 core but differ in display and size.</p>
+
+<h2>Board comparison</h2>
+<table>
+  <tr><th>Board</th><th>Display</th><th>Size</th><th>Best for</th></tr>
+  <tr>
+    <td><strong>AtomS3R</strong> (recommended)</td>
+    <td>1.14″ colour 135×240</td>
+    <td>35×35×15 mm</td>
+    <td>See sensor readings on device; best for demos and learning</td>
+  </tr>
+  <tr>
+    <td><strong>AtomS3 Lite</strong></td>
+    <td>None (use web app)</td>
+    <td>24×24×16 mm</td>
+    <td>Entry-level; lowest cost; compact setups</td>
+  </tr>
+</table>
+
+<div class="callout">
+  <b>Recommended for education:</b> The <b>AtomS3R</b> is the best choice because students can see what's happening on the device without needing a laptop nearby.
+</div>
+
+<h2>What you need</h2>
+<ul>
+  <li>One <strong>M5Stack AtomS3R or AtomS3 Lite</strong> board.</li>
+  <li><strong>M5Stack Atomic Motion Base v1.2</strong> — a core requirement, not optional. It provides the Grove port your sensors plug into, and (importantly) the battery that powers the AtomS3 — the LEGO LPF2 connection only carries TX/RX/GND signal wires, never power, so the Motion Base is what actually keeps the board running once it's wired to a hub.</li>
+  <li>A <strong>USB-C cable</strong> for power and flashing.</li>
+  <li>A <strong>Chromium-based browser</strong> — Chrome or Edge (Web Bluetooth doesn't work in Safari or Firefox).</li>
+  <li><em>Optional:</em>
+    <ul>
+      <li><strong>M5Stack Unit sensors</strong> — Colour, Distance, 8-Angle, Step16 (plug into Grove port).</li>
+      <li><strong>M5Stack Unit PaHub v2.1</strong> (SKU U076) — if you want multiple same-address sensors.</li>
+      <li><strong>LEGO® SPIKE Prime or Powered Up hub</strong> — for LEGO emitter (needs TX, RX, GND wires).</li>
+      <li><strong>Xbox Series X|S controller</strong> (Bluetooth mode) — for game controller bridge.</li>
+    </ul>
+  </li>
+</ul>
+
+<div class="callout">
+  <b>No LEGO hub? No problem.</b> The AtomS3 + Motion Base + a sensor is a complete, self-contained unit on its own — you don't need a LEGO hub at all to get started. Power it over USB-C or its own battery, plug in a sensor, and watch readings update live on the web app's <strong>Dashboard</strong> tab. The LEGO emitter is something you add later, once you're ready to feed that data into a hub.
+</div>
+
+<h2>Software prerequisites</h2>
+<ul>
+  <li><strong>ESP-IDF v6.0.2</strong> or v5.4 (project provides installer scripts).</li>
+  <li><strong>Node.js 18+</strong> and npm for running the web app locally.</li>
+  <li><strong>Chrome or Edge browser</strong> — Web Bluetooth is Chromium-only.</li>
+</ul>
+
+<!-- ===================== 3. GETTING STARTED ===================== -->
+<h1>3. Getting started</h1>
+
+<h2>3.1 Flash the firmware</h2>
+<ol class="step-list">
+  <li><strong>Install ESP-IDF</strong> (one-time setup):
+    <ul>
+      <li><strong>macOS/Linux:</strong> <code>./scripts/install-esp-idf.sh</code></li>
+      <li><strong>Windows:</strong> <code>scripts\install-esp-idf.ps1</code></li>
+      <li>Or use the Espressif VS Code extension.</li>
+    </ul>
+  </li>
+  <li><strong>Configure your board</strong> — Open <code>firmware/main/board_config.h</code> and uncomment the line that matches your board:
+    <ul>
+      <li><code>#define BOARD_ATOMS3R</code> for AtomS3R (with display)</li>
+      <li><code>#define BOARD_ATOMS3_LITE</code> for AtomS3 Lite (no display)</li>
+    </ul>
+    Save the file. Only one board type should be uncommented.
+  </li>
+  <li>Connect your AtomS3R or AtomS3 Lite via USB-C to your computer.</li>
+  <li>Run: <code>./scripts/dev-firmware.sh</code> (finds port and builds automatically)</li>
+  <li>Or manually:
+    <pre><code>cd firmware
+idf.py set-target esp32s3
+idf.py build
+idf.py -p &lt;PORT&gt; flash monitor</code></pre>
+  </li>
+</ol>
+
+<div class="callout warn">
+  <b>Wrong board selected?</b> If the firmware doesn't work correctly, check that you uncommented the correct board in <code>board_config.h</code>. Both boards use ESP32-S3, but the display is only available on AtomS3R.
+</div>
+
+<p>On first boot, the device seeds an empty sensor configuration. Bluetooth is disabled by default — <strong>hold the button for 3+ seconds to enable Bluetooth</strong> so the device advertises as <strong><code>MultiController</code></strong> and becomes discoverable to the web app.</p>
+
+<h2>3.2 Run the web app</h2>
+
+<p><strong>Option 1: Use the desktop app (easiest)</strong></p>
+<p>Download the pre-built Electron app from the <a href="https://github.com/matthewstephenroberts/multicontroller/releases">GitHub Releases page</a>. Available for Windows, macOS, and Linux. Just extract and run — no installation needed.</p>
+
+<p><strong>Option 2: Run from your browser (development)</strong></p>
+<ol class="step-list">
+  <li>From the project root, run: <code>./scripts/dev-frontend.sh</code></li>
+  <li>Or manually:
+    <ul>
+      <li><code>cd web && npm install</code></li>
+      <li><code>npm run dev</code></li>
+    </ul>
+  </li>
+  <li>Open <code>http://localhost:5173</code> in <strong>Chrome or Edge</strong></li>
+</ol>
+
+<div class="callout">
+  <b>Recommended for most users:</b> Use the pre-built desktop app — no browser tab open, no terminal needed.
+</div>
+
+<!-- ===================== 4. CONNECTING ===================== -->
+<h1>4. Connecting over Bluetooth LE</h1>
+<ol class="step-list">
+  <li>Power on your M5Stack (USB plugged in or battery charged).</li>
+  <li>In the web app, click <strong>Connect</strong>.</li>
+  <li>Click <strong>Scan for device</strong> — your browser shows a device chooser.</li>
+  <li>Select <strong><code>MultiController</code></strong> and click <strong>Pair</strong>.</li>
+  <li>Once connected, the app automatically fetches your configuration.</li>
+</ol>
+
+<div class="callout">
+  <b>Web Bluetooth security:</b> Web Bluetooth requires localhost (development) or HTTPS (production). The private Bluetooth service only appears in this web app, not in your OS's Bluetooth settings.
+</div>
+
+<p><strong>Device not showing up?</strong> Confirm:</p>
+<ul>
+  <li>M5Stack is powered on (LED should be visible)</li>
+  <li>You're using Chrome or Edge (not Safari or Firefox)</li>
+  <li>No other web app is already connected (only one connection at a time)</li>
+  <li>Try pressing the reset button on the board or power-cycling</li>
+</ul>
+
+<!-- ===================== 5. WIRING ===================== -->
+<h1 id="wiring">5. Wiring sensors and accessories</h1>
+
+<p>MultiController currently supports <strong>I2C sensors</strong> connected via the Grove connector (QWIIC-compatible) on the M5Stack board. SPI and UART sensor support is planned for future releases.</p>
+
+<div class="callout warn">
+  <b>Peripheral power (GPIO 21):</b> This pin gates power to the I2C/Grove bus. It's driven high at boot. If a sensor scan finds nothing, check this pin.
+</div>
+
+<h2>I2C bus — Grove connector (primary)</h2>
+<table>
+  <tr><th>Signal</th><th>GPIO</th><th>Notes</th></tr>
+  <tr><td>SDA</td><td>42</td><td>Grove/QWIIC SDA; pull-ups onboard</td></tr>
+  <tr><td>SCL</td><td>41</td><td>Grove/QWIIC SCL; pull-ups onboard</td></tr>
+</table>
+
+<p>Most M5Stack Unit sensors plug directly into the Grove port. For multiple same-address sensors, use the <strong>M5Stack Unit PaHub v2.1</strong> (SKU U076) I2C multiplexer (addr <code>0x70</code>) to connect up to 6 sensors at once, or chain multiple PaHubs for even more sensors.</p>
+
+<h2>Onboard display (AtomS3R only) — SPI2</h2>
+<table>
+  <tr><th>Signal</th><th>GPIO</th></tr>
+  <tr><td>SCLK</td><td>36</td></tr>
+  <tr><td>MOSI</td><td>35</td></tr>
+  <tr><td>CS</td><td>7</td></tr>
+  <tr><td>DC</td><td>39</td></tr>
+  <tr><td>RST</td><td>40</td></tr>
+  <tr><td>Backlight</td><td>45</td></tr>
+</table>
+
+<h2>LEGO emitter (LPF2 connector)</h2>
+
+<p>To connect your M5Stack to a LEGO SPIKE Prime or Powered Up hub, you'll wire three signals from the LPF2 cable to Port C on the Motion Base.</p>
+
+<div class="callout">
+  <b>Where to get cables:</b>
+  <ul style="margin: 3mm 0; padding-left: 5mm;">
+    <li><strong>Grove cable:</strong> Available from <a href="https://shop.m5stack.com">M5Stack Shop</a></li>
+    <li><strong>LPF2 cable:</strong> Search AliExpress for <strong>"Spike Crystal Connector Cable"</strong> or <strong>"Powerup Connector Cable"</strong> — these are standard LEGO LPF2 connectors at a fraction of the official price</li>
+  </ul>
+</div>
+
+<div class="callout warn">
+  <b>Important:</b> The LPF2 connector has 6 pins, but you only need <b>three</b>: Ground (GND), Transmit (TX), and Receive (RX). Ignore the motor pins and 3V3 power pin.
+</div>
+
+<h3>LPF2 cable pinout (6-pin LEGO connector)</h3>
+<table>
+  <tr><th>Pin</th><th>Signal</th><th>Colour</th><th>Usage</th></tr>
+  <tr><td>1</td><td>Motor A+</td><td>—</td><td><strong>Ignore</strong></td></tr>
+  <tr><td>2</td><td>Motor A−</td><td>—</td><td><strong>Ignore</strong></td></tr>
+  <tr><td>3</td><td>GND (ground)</td><td>Black</td><td><strong>Use this</strong></td></tr>
+  <tr><td>4</td><td>3V3 Power</td><td>Red</td><td><strong>Ignore</strong></td></tr>
+  <tr><td>5</td><td>TX (transmit)</td><td>Yellow</td><td><strong>Use this</strong></td></tr>
+  <tr><td>6</td><td>RX (receive)</td><td>Green</td><td><strong>Use this</strong></td></tr>
+</table>
+
+<h3>Port C pinout (Motion Base header)</h3>
+<p>Port C on the Atomic Motion Base has 4 pins (looking at it from the front):</p>
+<table>
+  <tr><th>Pin 1</th><th>Pin 2</th><th>Pin 3</th><th>Pin 4</th></tr>
+  <tr><td>GND</td><td>TX</td><td>RX</td><td>+5V <em>(ignore)</em></td></tr>
+</table>
+<p style="color: #6b7785;"><em>Ignore Pin 4 (+5V)</em> — it's not needed to connect to the LEGO hub. Only GND, TX, and RX (Pins 1–3) carry the signals the LEGO emitter actually uses.</p>
+
+<h3>How to wire it</h3>
+<ol class="step-list">
+  <li>Locate Port C on your Motion Base (labelled "Port C" or "P3")</li>
+  <li>Find the LPF2 cable from your LEGO hub</li>
+  <li>Strip about 2mm of insulation from the three wires you need</li>
+  <li>Make these connections:
+    <ul>
+      <li>LPF2 Pin 3 (GND, black) → Port C Pin 1 (GND)</li>
+      <li>LPF2 Pin 5 (TX, yellow) → Port C Pin 2 (TX)</li>
+      <li>LPF2 Pin 6 (RX, green) → Port C Pin 3 (RX)</li>
+    </ul>
+  </li>
+  <li><strong>Do NOT connect</strong> the motor pins (1, 2) or the 3V3 power pin (4)</li>
+  <li>Cover the connections with electrical tape or heat shrink to prevent shorts</li>
+</ol>
+
+<div class="callout">
+  <b>Soldering options:</b> You can solder, crimp connectors, or use a breadboard with jumper wires for temporary testing. No special tools required beyond what you'd find in a basic electronics kit.
+</div>
+
+<h3>Testing the connection</h3>
+<ul>
+  <li>The three wires should be secure and not move when wiggled</li>
+  <li>No bare copper visible after soldering or crimping</li>
+  <li>The red power wire should be isolated and not touching anything</li>
+</ul>
+
+<!-- ===================== 6. CONFIGURING SENSORS ===================== -->
+<h1>6. Configuring sensors</h1>
+
+<h2>6.1 Scan for attached sensors</h2>
+<ol class="step-list">
+  <li>In the web app, open the <strong>Sensors</strong> tab.</li>
+  <li>Click <strong>Scan I2C Bus</strong> — the app probes all I2C addresses and multiplexer channels.</li>
+  <li>Detected sensors appear as "Found at 0x..." cards.</li>
+</ol>
+
+<figure class="screenshot-figure">
+  <img src="screenshots/scan-discovered.png" alt="Scan tab showing discovered I2C sensors ready to add" />
+  <figcaption>Scan tab — discovered sensors ready to add, grouped by bus</figcaption>
+</figure>
+
+<h2>6.2 Add a sensor</h2>
+<ol class="step-list">
+  <li>Click <strong>+ Add sensor</strong>.</li>
+  <li>Select the sensor <strong>type</strong> (Colour, Distance, 8-Angle, Step16, etc.).</li>
+  <li>Choose its <strong>I2C address</strong> (displayed during scan).</li>
+  <li>If using the Unit PaHub v2.1 multiplexer, select which <strong>mux channel</strong> (0–5).</li>
+  <li>Set the <strong>poll rate</strong> (1–100 Hz depending on sensor speed).</li>
+  <li>Click <strong>Save</strong> — configuration is written to flash.</li>
+</ol>
+
+<figure class="screenshot-figure">
+  <img src="screenshots/sensors-tab.png" alt="Sensors tab showing a configured colour sensor with Calibrate button" />
+  <figcaption>Sensors tab — each configured sensor gets its own tab pill; switch between them to edit type, poll rate, and calibration</figcaption>
+</figure>
+
+<h2>6.3 Dashboard</h2>
+<p>Once configured and polling, the <strong>Dashboard</strong> tab shows live readings. The <strong>onboard display</strong> on AtomS3R updates in real time.</p>
+
+<figure class="screenshot-figure">
+  <img src="screenshots/dashboard-live.png" alt="Dashboard tab with live-updating charts for the knob unit and gamepad, shown in a 2-column layout" />
+  <figcaption>Dashboard tab — live charts update as sensors poll; switch to a 2-column layout to fit more sensors on screen at once</figcaption>
+</figure>
+
+<!-- ===================== 7. ONBOARD DISPLAY ===================== -->
+<h1>7. The onboard display (AtomS3R)</h1>
+
+<p>The 1.14″ screen shows device status and sensor readings without needing the web app.</p>
+
+<h2>Display modes</h2>
+<ul>
+  <li><strong>Boot splash:</strong> Device name and "starting..." (~700 ms on power-up).</li>
+  <li><strong>Sensor list:</strong> One line per sensor with current reading. Press reset button to page down.</li>
+  <li><strong>Tile mode:</strong> 2×2 grid of sensor tiles (colour swatches, distance bars, etc.).</li>
+  <li><strong>Gamepad mode:</strong> D-pad, button states, and stick/trigger values when a Bluetooth controller is paired.</li>
+</ul>
+
+<p>These simulated views are rendered pixel-for-pixel from the actual firmware's display logic, so they show exactly what appears on the real 128×128 panel:</p>
+
+<div class="device-mockup-grid">
+  <figure class="screenshot-figure">
+    <img src="screenshots/display-mode-boot.png" alt="Boot splash showing the Brix mascot above the LEGO brick logo and MultiController starting text" />
+    <figcaption><b>Boot splash</b>The Brix mascot stacked above the brick logo, then the device name and "starting…" underneath — shown for about 700 ms on power-up before the display switches to whichever mode was last used.</figcaption>
+  </figure>
+
+  <figure class="screenshot-figure">
+    <img src="screenshots/display-mode-sensors.png" alt="Sensor list mode showing one line per sensor with its current reading and a page indicator" />
+    <figcaption><b>Sensor list</b>One line per configured sensor — colour name, distance in mm, each 8-Angle knob value, step position. The "1/2 BOOT&gt;" indicator means there are more sensors than fit on one screen; press reset to page down.</figcaption>
+  </figure>
+
+  <figure class="screenshot-figure">
+    <img src="screenshots/display-mode-tiles.png" alt="Tile mode showing a 2x2 grid with a colour swatch, distance bar, knob dial, and step number" />
+    <figcaption><b>Tile mode</b>The same readings as a 2×2 grid of bordered tiles instead of a text list — a solid colour swatch, a heat-gradient distance bar, a hue-gradient angle bar, and a plain step-position number.</figcaption>
+  </figure>
+
+  <figure class="screenshot-figure">
+    <img src="screenshots/display-mode-gamepad.png" alt="Gamepad mode showing a d-pad grid, buttons grid, a stick bar, and a trigger bar" />
+    <figcaption><b>Gamepad mode</b>Shown automatically once a Bluetooth controller is paired — a d-pad direction grid, a 16-button bitmask grid, a centred bar for a stick axis, and a bottom-fill bar for a trigger.</figcaption>
+  </figure>
+</div>
+
+<div class="callout">
+  <b>Screen timeout:</b> The display turns off after 5 minutes to save power. Press reset to wake.
+</div>
+
+<figure class="screenshot-figure">
+  <img src="screenshots/display-tab.png" alt="Web app Display tab showing onboard display configuration" />
+  <figcaption>Web app's Display tab — configures what the onboard AtomS3R screen shows (mode, controller, pins)</figcaption>
+</figure>
+
+<!-- ===================== 8. COLOUR SENSORS ===================== -->
+<h1>8. Colour sensors and palette calibration</h1>
+
+<p>MultiController supports colour sensors (TCS34725, AS7341, etc.) with a <strong>teachable palette</strong> for classifying colours into custom names.</p>
+
+<h2>8.1 Basic calibration</h2>
+<ol class="step-list">
+  <li>In the web app, open <strong>Colour Calibration</strong>.</li>
+  <li>Select your colour sensor from the dropdown.</li>
+  <li>Click <strong>Sample white point</strong> — hold the sensor under white paper in your lighting.</li>
+  <li>Click <strong>Sample black point</strong> — hold under black paper.</li>
+  <li>Click <strong>Save defaults</strong> — stored on the device.</li>
+</ol>
+
+<h2>8.2 Teachable palette</h2>
+<ol class="step-list">
+  <li>Click <strong>+ Add colour</strong>.</li>
+  <li>Name it (e.g., "red", "lego-red", "brick").</li>
+  <li>Hold the sensor under a sample and click <strong>Sample</strong>.</li>
+  <li>Repeat for each colour you want to recognize.</li>
+  <li>Click <strong>Save palette</strong> — the device now classifies readings into your named colours.</li>
+</ol>
+
+<figure class="screenshot-figure">
+  <img src="screenshots/colour-calibration.png" alt="Colour calibration and teachable palette section of the Sensors tab" />
+  <figcaption>Colour calibration and teachable palette — scroll down on a colour sensor's card to Teach, Edit, or Reset each named colour</figcaption>
+</figure>
+
+<!-- ===================== 9. LEGO EMITTER ===================== -->
+<h1>9. LEGO® hub emulation</h1>
+
+<p>MultiController emulates a LEGO® Powered Up <strong>Color Sensor</strong>, letting your SPIKE Prime or Powered Up hub read your custom sensors through a single connection.</p>
+
+<h2>9.1 Wiring the connection</h2>
+<p>Connect three wires from the M5Stack to your LEGO hub's LPF2 port:</p>
+<table>
+  <tr><th>LEGO connector</th><th>M5Stack pin</th></tr>
+  <tr><td>TX (yellow, pin 6)</td><td>GPIO 1 (RX)</td></tr>
+  <tr><td>RX (green, pin 5)</td><td>GPIO 2 (TX)</td></tr>
+  <tr><td>GND (black, pins 3–4)</td><td>GND</td></tr>
+</table>
+
+<div class="callout warn">
+  Use thin, flexible wires. LEGO connectors are delicate — apply only gentle pressure.
+</div>
+
+<h2>9.2 Configuring the emitter</h2>
+<ol class="step-list">
+  <li>In the web app, open the <strong>LEGO</strong> tab.</li>
+  <li>Select which sensor to emulate from (usually your colour sensor).</li>
+  <li>Choose profile: <strong>Color Sensor (0x3D)</strong> — sends RGB and lux readings to the hub.</li>
+  <li>Click <strong>Start emitter</strong>.</li>
+  <li>On the hub, scan for a new sensor in port A. You'll see "Color Sensor" appear.</li>
+</ol>
+
+<figure class="screenshot-figure">
+  <img src="screenshots/lego-tab.png" alt="LEGO tab showing the quick-assign panel for the Color Sensor emulation profile" />
+  <figcaption>LEGO tab — Quick assign maps sensor values (R, G, B, I channels) to what the hub reads as a real Color Sensor</figcaption>
+</figure>
+
+<p>Now your SPIKE or Pybricks program reads your M5Stack sensors as a real LEGO sensor, updating in real time.</p>
+
+<!-- ===================== 10. GAME CONTROLLER BRIDGE ===================== -->
+<h1>10. Bluetooth game controller bridge</h1>
+
+<p>Pair an <strong>Xbox Series X|S wireless controller</strong> (Bluetooth mode) so its input feeds into the LEGO hub.</p>
+
+<h2>10.1 Pairing</h2>
+<ol class="step-list">
+  <li>Put your Xbox controller in pairing mode (press back button for 3 seconds).</li>
+  <li>In the web app, open the <strong>Controller</strong> tab.</li>
+  <li>Click <strong>Scan for controller</strong>.</li>
+  <li>Select your controller and click <strong>Pair</strong>.</li>
+</ol>
+
+<figure class="screenshot-figure">
+  <img src="screenshots/gamepad-controller.png" alt="Virtual game controller overlay showing sticks, triggers, d-pad, and buttons" />
+  <figcaption>Virtual on-screen controller — test button/stick input without a physical Xbox controller connected, from the Dashboard's gamepad card</figcaption>
+</figure>
+
+<h2>10.2 Using in LEGO code</h2>
+<p>Once paired, controller buttons and sticks are just another source in the LEGO tab's <strong>Quick assign</strong> panel (see section 9) — map a stick axis, trigger, d-pad, or the buttons bitmask onto any of the 6 channels the same way you'd map a sensor reading. Your hub program reads them all back through the exact same <code>color_sensor.rgbi()</code> / <code>device.read()</code> call, whatever mix of sensors and controller fields you've assigned.</p>
+
+<p>The web app writes the decode program for you — open the <strong>LEGO</strong> tab in <strong>Grown-up mode</strong> (Settings → Grown-up mode) to see three ready-to-use versions of the exact same mapping, regenerated live as you change Quick assign:</p>
+
+<h3>Option A — LEGO blocks (SPIKE App / Word Blocks)</h3>
+<p>No typing needed — the <strong>Build it with blocks</strong> section shows the reporter block and maths to drag into the SPIKE App, generated for your current field layout:</p>
+
+<figure class="screenshot-figure">
+  <img src="screenshots/lego-word-blocks.png" alt="SPIKE App word blocks showing a set-variable block reading the red light reporter, multiplied by scale and offset" />
+  <figcaption>Build it with blocks — drag this into the SPIKE App exactly as shown; a field aligned to a whole channel needs no maths at all</figcaption>
+</figure>
+
+<h3>Option B — SPIKE Prime / Robot Inventor (hub MicroPython)</h3>
+<p>Paste-and-run Python for the SPIKE App's Python mode or a Robot Inventor hub:</p>
+<pre><code># SPIKE Prime / Robot Inventor — hub MicroPython.
+# Plug the MultiController board into port A.
+import color_sensor
+from hub import port
+import time
+
+def decode(r, g, b, i):
+    # rebuild the 64-bit word (mask each channel — DATA16 can come back signed)
+    w = (r &amp; 0xFFFF) | ((g &amp; 0xFFFF) &lt;&lt; 16) | ((b &amp; 0xFFFF) &lt;&lt; 32) | ((i &amp; 0xFFFF) &lt;&lt; 48)
+    out = {}
+    raw = (w &gt;&gt; 0) &amp; 0xffff   # 16-bit
+    out["distance_sensor_dist"] = raw * 0.019226367589837492 + 40
+    return out
+
+while True:
+    r, g, b, i = color_sensor.rgbi(port.A)
+    out = decode(r, g, b, i)
+    native_colour = color_sensor.color(port.A)
+    native_reflect = color_sensor.reflection(port.A)
+    print(out, "native_colour:", native_colour, "native_reflect:", native_reflect)
+    time.sleep_ms(100)
+</code></pre>
+
+<h3>Option C — Pybricks</h3>
+<p>Same mapping, for boards running <a href="https://pybricks.com">Pybricks</a> firmware instead:</p>
+<pre><code># Pybricks (pybricks.com firmware).
+# Plug the MultiController board into port A.
+from pybricks.pupdevices import PUPDevice
+from pybricks.parameters import Port
+from pybricks.tools import wait
+
+device = PUPDevice(Port.A)
+
+def decode(r, g, b, i):
+    # rebuild the 64-bit word (mask each channel — DATA16 can come back signed)
+    w = (r &amp; 0xFFFF) | ((g &amp; 0xFFFF) &lt;&lt; 16) | ((b &amp; 0xFFFF) &lt;&lt; 32) | ((i &amp; 0xFFFF) &lt;&lt; 48)
+    out = {}
+    raw = (w &gt;&gt; 0) &amp; 0xffff   # 16-bit
+    out["distance_sensor_dist"] = raw * 0.019226367589837492 + 40
+    return out
+
+while True:
+    r, g, b, i = device.read(5)   # mode 5 = RGB I
+    out = decode(r, g, b, i)
+    native_colour = device.read(0)[0]
+    native_reflect = device.read(1)[0]
+    print(out, "native_colour:", native_colour, "native_reflect:", native_reflect)
+    wait(100)
+</code></pre>
+
+<div class="callout">
+  <b>These are generated, not hand-written.</b> The scale/offset numbers above match whatever's actually assigned in Quick assign on the device that generated this manual — yours will differ once you map your own sensors and gamepad fields. Copy the version the web app shows you, not this example, once you've set up your own fields.
+</div>
+
+<!-- ===================== 11. GPIO SENSORS ===================== -->
+<h1>11. GPIO / ADC pin sensors</h1>
+
+<p>Use GPIO pins as simple digital inputs (button, switch) or analog inputs (potentiometer, photoresistor).</p>
+
+<h2>11.1 Digital input (GPIO)</h2>
+<p>Connect a button or switch to a GPIO pin and GND. Configure as "GPIO Digital" sensor. Readings are 0 (open) or 1 (pressed).</p>
+
+<h2>11.2 Analog input (ADC)</h2>
+<p>Connect a potentiometer or light sensor to an ADC-capable pin (e.g., GPIO 3). Configure as "ADC" sensor. Readings range 0–4095 based on voltage.</p>
+
+<!-- ===================== 12. TROUBLESHOOTING ===================== -->
+<h1>12. Maintenance and troubleshooting</h1>
+
+<h2>Factory reset</h2>
+<p>To reset the device to a fresh empty configuration:</p>
+<ol class="step-list">
+  <li>In the web app, open the <strong>Settings</strong> tab.</li>
+  <li>Click <strong>Factory Reset</strong>.</li>
+  <li>Confirm the action.</li>
+  <li>The device reboots with an empty sensor configuration.</li>
+</ol>
+
+<h2>Button controls</h2>
+<p>The button on the M5Stack controls Bluetooth pairing mode:</p>
+<ul>
+  <li><strong>Press and hold for 3+ seconds:</strong> Toggle Bluetooth on/off. First long press enables Bluetooth advertising (device becomes discoverable). Second long press disables it.</li>
+  <li><strong>After factory reset:</strong> Hold button for 3+ seconds to enable Bluetooth so you can connect the web app and reconfigure sensors.</li>
+  <li><strong>Short press:</strong> On AtomS3R with display, cycles through screen modes (sensor list, tiles, gamepad) without affecting Bluetooth state.</li>
+</ul>
+
+<h2>Firmware update</h2>
+<ol class="step-list">
+  <li>Download the latest <code>MultiController.bin</code> from GitHub Releases.</li>
+  <li>Connect the M5Stack via USB.</li>
+  <li>Run: <code>esptool.py -p &lt;PORT&gt; write_flash 0x0 MultiController.bin</code></li>
+  <li>The device reboots and retains configuration automatically.</li>
+</ol>
+
+<h2>Device won't connect (Bluetooth)</h2>
+<ul>
+  <li>Make sure you're using <strong>Chrome or Edge</strong> (not Safari or Firefox).</li>
+  <li>Confirm the board is powered (USB plugged in or battery charged).</li>
+  <li>Try clicking "Reset" in the web app, then "Scan" again.</li>
+  <li>On Mac, grant Bluetooth permission in System Settings → Privacy.</li>
+</ul>
+
+<h2>Sensor doesn't appear in scan</h2>
+<ul>
+  <li>Check that the sensor cable is fully seated in the Grove port.</li>
+  <li>Try unplugging and re-plugging the sensor.</li>
+  <li>Power-cycle the M5Stack (unplug USB for 10 seconds).</li>
+  <li>Verify the sensor's I2C address in its datasheet.</li>
+</ul>
+
+<h2>Web app crashes or freezes</h2>
+<ul>
+  <li>Hard-refresh your browser (Cmd+Shift+R on Mac, Ctrl+Shift+R on Windows).</li>
+  <li>Clear browser cache (Settings → Clear browsing data).</li>
+  <li>Try a different browser (Edge if using Chrome, or vice versa).</li>
+</ul>
+
+<h2>Flashing firmware fails</h2>
+<ul>
+  <li>Check the USB cable — it must support data (some cables are charge-only).</li>
+  <li>Try a different USB port or cable.</li>
+  <li>On Mac, check <code>/dev/tty.usbserial-*</code> for available ports.</li>
+  <li>Ensure you've set the target: <code>idf.py set-target esp32s3</code>.</li>
+</ul>
+
+<!-- ===================== 13. APPENDIX ===================== -->
+<h1 id="appendix">13. Appendix — Sensor reference</h1>
+
+<h2>Supported sensors</h2>
+<table>
+  <tr><th>Type</th><th>Interface</th><th>M5Stack Unit</th><th>Max rate</th></tr>
+  <tr><td><strong>Colour</strong></td><td>I2C</td><td>TCS34725, AS7341</td><td>50 Hz</td></tr>
+  <tr><td><strong>Distance</strong></td><td>I2C</td><td>VL53L1X, TOF10120</td><td>50 Hz</td></tr>
+  <tr><td><strong>8-Angle</strong></td><td>I2C</td><td>Potentiometer + RGB LEDs</td><td>50 Hz</td></tr>
+  <tr><td><strong>GPIO (digital)</strong></td><td>GPIO</td><td>Button, switch</td><td>100 Hz</td></tr>
+  <tr><td><strong>ADC (analog)</strong></td><td>GPIO</td><td>Potentiometer, photoresistor</td><td>50 Hz</td></tr>
+</table>
+
+<figure class="screenshot-figure">
+  <img src="screenshots/step16-sensor.png" alt="Sensors tab showing the M5Stack Step16 Unit's configuration and description" />
+  <figcaption>Every sensor type gets its own info panel in the Sensors tab — wiring, I2C address, and quirks specific to that unit</figcaption>
+</figure>
+
+<h2>Sensor value ranges</h2>
+<table>
+  <tr><th>Sensor</th><th>Value</th><th>Type</th><th>Range</th></tr>
+  <tr><td><strong>Colour</strong></td><td>RGB</td><td>tuple</td><td>0–255 per channel</td></tr>
+  <tr><td></td><td>Lux</td><td>integer</td><td>0–65535</td></tr>
+  <tr><td></td><td>Name</td><td>string</td><td>from your palette</td></tr>
+  <tr><td><strong>Distance</strong></td><td>mm</td><td>integer</td><td>0–4000</td></tr>
+  <tr><td><strong>8-Angle</strong></td><td>Angle</td><td>integer</td><td>0–359°</td></tr>
+  <tr><td><strong>GPIO</strong></td><td>State</td><td>integer</td><td>0 or 1</td></tr>
+  <tr><td><strong>ADC</strong></td><td>Raw</td><td>integer</td><td>0–4095</td></tr>
+</table>
+
+<footer class="pagefoot">
+MultiController User Manual · github.com/matthewstephenroberts/multicontroller · MIT License · Latest version available online
+</footer>
+
+</body>
+</html>

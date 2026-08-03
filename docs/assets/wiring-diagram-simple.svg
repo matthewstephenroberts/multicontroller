@@ -1,0 +1,172 @@
+<svg viewBox="0 0 1400 950" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif; }
+      .component-box { fill: #F5F7FA; stroke: #0066CC; stroke-width: 2.5; }
+      .component-title { font-size: 15px; font-weight: 600; fill: #0D1117; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      .component-label { font-size: 13px; fill: #424A53; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      .connection-label { font-size: 12px; fill: #0066CC; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      .uart-line { stroke: #DC3545; stroke-width: 3; fill: none; }
+      .i2c-line { stroke: #28A745; stroke-width: 3; fill: none; }
+      .power-line { stroke: #FFC107; stroke-width: 3; fill: none; }
+      .title { font-size: 26px; font-weight: 700; fill: #0D1117; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      .subtitle { font-size: 14px; fill: #666; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      .legend-label { font-size: 12px; fill: #424A53; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      .info-title { font-size: 14px; font-weight: 600; fill: #0D1117; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      .info-text { font-size: 12px; fill: #424A53; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1400" height="950" fill="#FFFFFF" />
+
+  <!-- Title -->
+  <text x="700" y="35" text-anchor="middle" class="title">MultiController Wiring Diagram</text>
+  <text x="700" y="55" text-anchor="middle" class="subtitle">Connect LEGO Hub, Atom, Motion Base, and Sensors</text>
+
+  <!-- Legend -->
+  <g id="legend">
+    <line x1="80" y1="80" x2="120" y2="80" class="uart-line" />
+    <text x="130" y="85" class="legend-label">UART Cable (Power &amp; Data)</text>
+
+    <line x1="80" y1="105" x2="120" y2="105" class="i2c-line" />
+    <text x="130" y="110" class="legend-label">I2C Data (Sensors)</text>
+
+    <line x1="80" y1="130" x2="120" y2="130" class="power-line" />
+    <text x="130" y="135" class="legend-label">Power &amp; Data (Atom to Motion Base)</text>
+  </g>
+
+  <!-- ===== LEFT SIDE: LEGO HUB ===== -->
+  <g id="hub">
+    <rect x="100" y="220" width="180" height="140" class="component-box" rx="10" />
+    <text x="190" y="255" text-anchor="middle" class="component-title">LEGO Hub</text>
+    <text x="190" y="280" text-anchor="middle" class="component-label">SPIKE Prime</text>
+    <text x="190" y="300" text-anchor="middle" class="component-label">or Powered Up</text>
+    <text x="190" y="325" text-anchor="middle" class="component-label">Port C</text>
+
+    <!-- Port C indicator -->
+    <circle cx="280" cy="280" r="7" fill="#0066CC" />
+  </g>
+
+  <!-- ===== CENTER: ATOM ON MOTION BASE ===== -->
+  <!-- Motion Base (bottom) -->
+  <g id="motion-base">
+    <rect x="420" y="420" width="220" height="160" class="component-box" rx="10" />
+    <text x="530" y="460" text-anchor="middle" class="component-title">Atomic Motion Base v1.2</text>
+    <text x="530" y="485" text-anchor="middle" class="component-label">• Battery Power</text>
+    <text x="530" y="505" text-anchor="middle" class="component-label">• Port C (UART to hub)</text>
+    <text x="530" y="525" text-anchor="middle" class="component-label">• Holds Atom on top</text>
+
+    <!-- UART Port C indicator where cable connects -->
+    <circle cx="420" cy="480" r="7" fill="#0066CC" />
+    <text x="380" y="485" class="component-label" font-size="11">UART</text>
+  </g>
+
+  <!-- M5Stack Atom (on top of Motion Base) -->
+  <g id="atom">
+    <rect x="440" y="200" width="180" height="150" class="component-box" rx="10" />
+    <text x="530" y="240" text-anchor="middle" class="component-title">M5Stack Atom</text>
+    <text x="530" y="263" text-anchor="middle" class="component-label">AtomS3R or Lite</text>
+
+    <!-- Port A on Atom -->
+    <rect x="460" y="290" width="140" height="40" fill="#E8F4FF" stroke="#0066CC" stroke-width="1.5" rx="4" />
+    <text x="530" y="308" text-anchor="middle" class="component-title" font-size="13">Grove Port A</text>
+    <text x="530" y="322" text-anchor="middle" class="component-label" font-size="11">(I2C Sensors)</text>
+  </g>
+
+  <!-- Connection: Atom sits on Motion Base -->
+  <path d="M 530 350 L 530 420" class="power-line" stroke-dasharray="6,4" stroke-width="2" />
+  <text x="545" y="385" class="connection-label" font-size="11">Clips on</text>
+
+  <!-- ===== UART CONNECTION: Hub to Motion Base ===== -->
+  <path d="M 280 280 Q 350 280 420 480" class="uart-line" />
+  <text x="280" y="410" class="connection-label">UART Cable</text>
+  <text x="290" y="427" class="connection-label" font-size="11">(TX, RX, GND)</text>
+
+  <!-- ===== RIGHT SIDE: SENSORS ===== -->
+  <!-- I2C Branch from Atom Port A (coming from right side) -->
+  <path d="M 620 310 L 720 310" class="i2c-line" />
+  <text x="670" y="300" class="connection-label" font-size="11">I2C</text>
+  <circle cx="720" cy="310" r="5" fill="#28A745" />
+
+  <!-- SENSORS ARRANGED IN 2x2 GRID -->
+
+  <!-- TOP ROW -->
+  <!-- Colour Unit (top left) -->
+  <g id="colour-sensor">
+    <rect x="800" y="200" width="160" height="130" class="component-box" rx="10" />
+    <text x="880" y="235" text-anchor="middle" class="component-title">Colour Unit</text>
+    <text x="880" y="258" text-anchor="middle" class="component-label">TCS34725</text>
+    <text x="880" y="278" text-anchor="middle" class="component-label">Sees RGB</text>
+    <text x="880" y="298" text-anchor="middle" class="component-label">Colors</text>
+    <circle cx="950" cy="220" r="6" fill="#28A745" />
+  </g>
+
+  <!-- Distance Unit (top right) -->
+  <g id="distance-sensor">
+    <rect x="1020" y="200" width="160" height="130" class="component-box" rx="10" />
+    <text x="1100" y="235" text-anchor="middle" class="component-title">Distance Unit</text>
+    <text x="1100" y="258" text-anchor="middle" class="component-label">VL53L1X</text>
+    <text x="1100" y="278" text-anchor="middle" class="component-label">Laser Range</text>
+    <text x="1100" y="298" text-anchor="middle" class="component-label">Finder</text>
+    <circle cx="1170" cy="220" r="6" fill="#28A745" />
+  </g>
+
+  <!-- BOTTOM ROW -->
+  <!-- 8-Angle Unit (bottom left) -->
+  <g id="angle-sensor">
+    <rect x="800" y="420" width="160" height="130" class="component-box" rx="10" />
+    <text x="880" y="455" text-anchor="middle" class="component-title">8-Angle Unit</text>
+    <text x="880" y="478" text-anchor="middle" class="component-label">Potentiometers</text>
+    <text x="880" y="498" text-anchor="middle" class="component-label">8 Twist</text>
+    <text x="880" y="518" text-anchor="middle" class="component-label">Knobs</text>
+    <circle cx="950" cy="440" r="6" fill="#28A745" />
+  </g>
+
+  <!-- Step16 Unit (bottom right) -->
+  <g id="step16-sensor">
+    <rect x="1020" y="420" width="160" height="130" class="component-box" rx="10" />
+    <text x="1100" y="455" text-anchor="middle" class="component-title">Step16 Unit</text>
+    <text x="1100" y="478" text-anchor="middle" class="component-label">Rotary Encoder</text>
+    <text x="1100" y="498" text-anchor="middle" class="component-label">Spinning</text>
+    <text x="1100" y="518" text-anchor="middle" class="component-label">Dial</text>
+    <circle cx="1170" cy="440" r="6" fill="#28A745" />
+  </g>
+
+  <!-- Connection lines from I2C branch point to each sensor -->
+  <!-- To Colour Unit -->
+  <path d="M 720 310 Q 760 250 800 240" class="i2c-line" stroke-dasharray="4,3" />
+
+  <!-- To Distance Unit -->
+  <path d="M 720 310 Q 850 250 1020 240" class="i2c-line" stroke-dasharray="4,3" />
+
+  <!-- To 8-Angle Unit -->
+  <path d="M 720 310 Q 760 380 800 450" class="i2c-line" stroke-dasharray="4,3" />
+
+  <!-- To Step16 Unit -->
+  <path d="M 720 310 Q 850 380 1020 450" class="i2c-line" stroke-dasharray="4,3" />
+
+  <!-- ===== BOTTOM INFO BOXES ===== -->
+
+  <!-- How It Works Box -->
+  <g id="how-it-works">
+    <rect x="100" y="730" width="620" height="180" fill="none" stroke="#0066CC" stroke-width="2" rx="10" />
+    <text x="120" y="760" class="info-title">How It Works:</text>
+
+    <text x="120" y="790" class="info-text">1. Splice UART cable connects LEGO Hub Port C to Motion Base Port C (3 wires: TX, RX, GND)</text>
+    <text x="120" y="812" class="info-text">2. M5Stack Atom clips onto top of Motion Base, receives power from battery</text>
+    <text x="120" y="834" class="info-text">3. Sensors plug into Grove Port A on the Atom (uses I2C protocol)</text>
+    <text x="120" y="856" class="info-text">4. LEGO Hub sees one fake sensor that reads all 4 real sensors at once</text>
+  </g>
+
+  <!-- Multiple Sensors Box -->
+  <g id="multiple-sensors">
+    <rect x="760" y="730" width="600" height="180" fill="none" stroke="#FFC107" stroke-width="2" rx="10" stroke-dasharray="5,5" />
+    <text x="780" y="760" class="info-title" fill="#B39D00">Connecting Multiple Sensors to Port A:</text>
+
+    <text x="780" y="790" class="info-text">• Grove Y-Cable: Connect 2 sensors (different I2C addresses)</text>
+    <text x="780" y="812" class="info-text">• M5Stack Unit PaHub v2.1: Connect up to 6 sensors (same or different types)</text>
+    <text x="780" y="834" class="info-text">• Chain multiple PaHubs for even more sensors</text>
+    <text x="780" y="856" class="info-text">All connect to the single Grove Port A on top of the Atom</text>
+  </g>
+</svg>

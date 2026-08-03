@@ -1,0 +1,34 @@
+# ESP-IDF / firmware build artifacts
+firmware/build/
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/managed_components/
+firmware/dependencies.lock
+*.bin
+*.elf
+*.map
+
+# Node / web
+node_modules/
+package-lock.json
+web/node_modules/
+web/dist/
+web/.vite/
+*.local
+
+# Demo GIF/WebM generation — intermediate frames (see scripts/generate-demo.mjs)
+scripts/_demo_frames/
+
+# Electron desktop wrapper
+electron/node_modules/
+electron/web-dist/
+electron/release/
+
+# Editor / OS
+.vscode/
+!.vscode/extensions.json
+.DS_Store
+*.log
+
+# Claude IDE (local development configs)
+.claude/

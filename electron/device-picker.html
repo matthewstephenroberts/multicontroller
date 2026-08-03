@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Select device</title>
+<style>
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #161b22;
+    color: #e6edf3;
+    margin: 0;
+    padding: 16px;
+  }
+  h3 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+  button.device {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    background: #1c2230;
+    border: 1px solid #273042;
+    color: #e6edf3;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  button.device:hover { background: #273042; }
+  button.cancel {
+    margin-top: 4px;
+    background: transparent;
+    border: 1px solid #273042;
+    color: #8b97a7;
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+  <h3>Multiple boards found — pick one:</h3>
+  <div id="list"></div>
+  <button class="cancel" id="cancelBtn">Cancel</button>
+  <script>
+    window.picker.onDeviceList((devices) => {
+      const list = document.getElementById("list");
+      list.innerHTML = "";
+      devices.forEach((d) => {
+        const btn = document.createElement("button");
+        btn.className = "device";
+        btn.textContent = d.deviceName + " (" + d.deviceId.slice(0, 8) + "…)";
+        btn.onclick = () => window.picker.select(d.deviceId);
+        list.appendChild(btn);
+      });
+    });
+    document.getElementById("cancelBtn").onclick = () => window.picker.cancel();
+  </script>
+</body>
+</html>

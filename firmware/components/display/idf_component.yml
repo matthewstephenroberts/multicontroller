@@ -1,0 +1,3 @@
+# ILI9341 panel driver is a managed component (ST7789 + SSD1306 are in core esp_lcd).
+dependencies:
+  espressif/esp_lcd_ili9341: "*"

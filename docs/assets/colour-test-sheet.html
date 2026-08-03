@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>MultiController — Colour Sensor Test Sheet</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    margin: 0;
+    color: #111;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 2px solid #111;
+    padding-bottom: 6px;
+    margin-bottom: 4mm;
+  }
+  h1 { font-size: 15pt; margin: 0; }
+  .sub { font-size: 8.5pt; color: #444; margin: 2px 0 0; }
+  .note {
+    font-size: 8pt;
+    color: #444;
+    background: #f2f2f2;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    padding: 4px 8px;
+    margin-bottom: 4mm;
+    line-height: 1.35;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5mm 5mm;
+  }
+  .swatch {
+    border: 1px solid #999;
+    border-radius: 4px;
+    overflow: hidden;
+    break-inside: avoid;
+  }
+  .fill { height: 32mm; border-bottom: 1px solid #999; }
+  .label { padding: 3px 6px; font-size: 8pt; line-height: 1.5; }
+  .label b { font-size: 9.5pt; text-transform: capitalize; }
+  .label .meta { color: #555; }
+  .approx { position: relative; }
+  .approx .flag {
+    position: absolute; top: 3px; right: 5px;
+    font-size: 6.5pt; background: #fff; border: 1px solid #999;
+    border-radius: 3px; padding: 0 3px; color: #a00;
+  }
+  footer {
+    margin-top: 5mm;
+    font-size: 7.5pt;
+    color: #777;
+    border-top: 1px solid #ccc;
+    padding-top: 3px;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>MultiController — Colour Sensor Test Sheet</h1>
+      <p class="sub">TCS34725 / AS7341 — the 12 built-in default colours</p>
+    </div>
+    <div class="sub">docs/colour-calibration.md</div>
+  </header>
+
+  <div class="note">
+    <b>Printed colour is not a calibration reference.</b> Home/office printers vary in ink,
+    paper, and colour management, so printed swatches will read differently than genuine LEGO
+    bricks or the RGB values below. Use this sheet to sanity-check that the sensor and
+    classifier are working and to see the effect of <b>white-balance calibration</b> and
+    <b>Teach</b> — not as a substitute for teaching against real physical samples under your
+    actual lighting. Swatches marked <span style="color:#a00">approx</span> have no published
+    LEGO reference value at all (see docs/colour-calibration.md).
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <footer>
+    Generated from the firmware's built-in TCS34725 defaults (sensor_transform.c). The 8
+    SPIKE-named colours (black/violet/blue/light blue/green/yellow/red/white) use LEGO's
+    published SPIKE Color Sensor reference RGB; purple/cyan/orange/silver are approximate.
+  </footer>
+
+  <script>
+    // Mirrors TCS_DEF in firmware/components/sensor/sensor_transform.c — keep in sync.
+    const COLOURS = [
+      { name: "black",      id: 0,  rgb: [0, 0, 0],       approx: false },
+      { name: "violet",     id: 1,  rgb: [144, 31, 118],  approx: false },
+      { name: "purple",     id: 2,  rgb: [140, 0, 140],   approx: true  },
+      { name: "blue",       id: 3,  rgb: [30, 90, 168],   approx: false },
+      { name: "light blue", id: 4,  rgb: [104, 195, 226], approx: false },
+      { name: "cyan",       id: 5,  rgb: [0, 200, 200],   approx: true  },
+      { name: "green",      id: 6,  rgb: [0, 133, 43],    approx: false },
+      { name: "yellow",     id: 7,  rgb: [250, 200, 10],  approx: false },
+      { name: "orange",     id: 8,  rgb: [255, 140, 0],   approx: true  },
+      { name: "red",        id: 9,  rgb: [180, 0, 0],     approx: false },
+      { name: "white",      id: 10, rgb: [244, 244, 244], approx: false },
+      { name: "silver",     id: 11, rgb: [192, 192, 192], approx: true  },
+    ];
+
+    const grid = document.getElementById("grid");
+    for (const c of COLOURS) {
+      const hex = "#" + c.rgb.map((v) => v.toString(16).padStart(2, "0")).join("");
+      const div = document.createElement("div");
+      div.className = "swatch" + (c.approx ? " approx" : "");
+      div.innerHTML = `
+        <div class="fill" style="background:${hex}"></div>
+        <div class="label">
+          <b>${c.name}</b><br/>
+          <span class="meta">id ${c.id} &middot; ${hex} &middot; rgb(${c.rgb.join(",")})</span>
+        </div>
+        ${c.approx ? '<span class="flag">approx</span>' : ""}
+      `;
+      grid.appendChild(div);
+    }
+  </script>
+</body>
+</html>

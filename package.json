@@ -1,0 +1,34 @@
+{
+  "name": "multicontroller",
+  "version": "1.0.0",
+  "description": "LEGO Education sensor hub with M5Stack — runtime-configurable sensors over Bluetooth LE",
+  "type": "module",
+  "scripts": {
+    "pdf": "bash scripts/generate-pdf.sh",
+    "pdf:watch": "nodemon --watch docs/assets/user-manual.html --exec 'bash scripts/generate-pdf.sh'",
+    "demo:record": "node scripts/generate-demo.mjs",
+    "demo:record:light": "node scripts/generate-demo.mjs --light",
+    "demo:gif": "python3 scripts/assemble-gif.py",
+    "demo:webm": "bash scripts/assemble-webm.sh",
+    "demo": "npm run demo:record && npm run demo:gif && npm run demo:webm",
+    "build-all": "./scripts/build-all.sh",
+    "dev-firmware": "./scripts/dev-firmware.sh",
+    "dev-frontend": "./scripts/dev-frontend.sh",
+    "dev-desktop": "./scripts/dev-desktop.sh"
+  },
+  "keywords": [
+    "esp32",
+    "lego",
+    "m5stack",
+    "robotics",
+    "education",
+    "sensor-hub",
+    "bluetooth",
+    "iot"
+  ],
+  "author": "Matthew Roberts",
+  "license": "MIT",
+  "devDependencies": {
+    "puppeteer": "^21.0.0"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "name": "multicontroller-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MultiController desktop app — Bluetooth LE sensor hub configurator",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:dir": "electron-builder --dir"
+  },
+  "devDependencies": {
+    "electron": "^43.0.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.multicontroller.app",
+    "productName": "MultiController",
+    "afterPack": "./afterPack.js",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "picker-preload.js",
+      "device-picker.html",
+      "web-dist/**/*"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.png"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.utilities",
+      "extendInfo": {
+        "NSBluetoothAlwaysUsageDescription": "MultiController connects to your ESP32 sensor board over Bluetooth LE.",
+        "NSBluetoothPeripheralUsageDescription": "MultiController connects to your ESP32 sensor board over Bluetooth LE."
+      }
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "build/icon.png",
+      "category": "Utility"
+    }
+  }
+}

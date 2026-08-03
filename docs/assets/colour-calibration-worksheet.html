@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>MultiController — TCS34725 Colour Calibration Capture Worksheet</title>
+<style>
+  @page { size: A4; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    margin: 0;
+    color: #111;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 2px solid #111;
+    padding-bottom: 6px;
+    margin-bottom: 4mm;
+  }
+  h1 { font-size: 15pt; margin: 0; }
+  .sub { font-size: 8.5pt; color: #444; margin: 2px 0 0; }
+  .note {
+    font-size: 8pt;
+    color: #444;
+    background: #f2f2f2;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    padding: 4px 8px;
+    margin-bottom: 4mm;
+    line-height: 1.35;
+  }
+  .note b { color: #a00; }
+  h2 { font-size: 10.5pt; margin: 5mm 0 2mm; }
+  ol, ul { font-size: 8.5pt; line-height: 1.5; margin: 0 0 4mm; padding-left: 5mm; }
+  table { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-bottom: 3mm; }
+  th, td { border: 1px solid #999; padding: 2.5mm 2mm; text-align: left; }
+  th { background: #f2f2f2; }
+  td.swatch { width: 6mm; }
+  td.fields { color: #aaa; }
+  tr.optional td:first-child { color: #555; }
+  .essential { background: #fafff6; }
+  footer {
+    margin-top: 4mm;
+    font-size: 7.5pt;
+    color: #777;
+    border-top: 1px solid #ccc;
+    padding-top: 3px;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>TCS34725 Colour Calibration — Capture Worksheet</h1>
+      <p class="sub">Recording sheet for fitting a colour-correction matrix (CCM)</p>
+    </div>
+    <div class="sub">docs/colour-calibration.md</div>
+  </header>
+
+  <div class="note">
+    <b>Use real physical LEGO bricks — not this printed page.</b> Printer ink/toner has a
+    different reflectance spectrum than genuine ABS plastic, so printed swatches would fit the
+    matrix to your printer, not to the bricks the sensor actually reads. This sheet is a
+    <b>recording sheet</b>: point the sensor at real bricks and write the numbers down here.
+  </div>
+
+  <h2>Setup checklist (do these once, before recording anything)</h2>
+  <ol>
+    <li>Use one consistent light source for the whole session — avoid mixing daylight with room
+      lighting, and avoid direct sunlight (it shifts colour temperature as it moves).</li>
+    <li>Fix the distance and angle from the sensor to the brick and keep it the same for every
+      sample — a spacer/jig helps more than trying to hold it steady by hand.</li>
+    <li>Don't change <b>poll_ms</b> during the session — TCS34725's gain/integration are derived
+      from it, so switching rates mid-session mixes samples from different effective gains.</li>
+    <li>Run <b>white-balance Calibrate</b> against a real white brick first, before recording any
+      samples below.</li>
+    <li>Read the sensor in <b>col_rgb255</b> or <b>col_full</b> mode and record the <b>r, g, b</b>
+      numbers from the dashboard's "rgb" line for each sample.</li>
+  </ol>
+
+  <h2>Which bricks to use</h2>
+  <p style="font-size:8.5pt; line-height:1.5; margin:0 0 4mm;">
+    Use genuinely <b>solid, saturated</b> official LEGO colours — not pastel, translucent, glow,
+    metallic, or speckled pieces. A good matrix fit needs well-separated, fully-saturated
+    primaries; a washed-out or translucent piece gives the fit less to work with and can make it
+    worse rather than better.
+  </p>
+
+  <h2>Essential samples (minimum needed for a usable fit)</h2>
+  <table>
+    <tr><th>Colour</th><th>Brick used (note the part/colour name)</th><th colspan="3">r, g, b</th></tr>
+    <tr class="essential"><td>White</td><td class="fields">&nbsp;</td><td class="fields">r:</td><td class="fields">g:</td><td class="fields">b:</td></tr>
+    <tr class="essential"><td>Black</td><td class="fields">&nbsp;</td><td class="fields">r:</td><td class="fields">g:</td><td class="fields">b:</td></tr>
+    <tr class="essential"><td>Red</td><td class="fields">&nbsp;</td><td class="fields">r:</td><td class="fields">g:</td><td class="fields">b:</td></tr>
+    <tr class="essential"><td>Green</td><td class="fields">&nbsp;</td><td class="fields">r:</td><td class="fields">g:</td><td class="fields">b:</td></tr>
+    <tr class="essential"><td>Blue</td><td class="fields">&nbsp;</td><td class="fields">r:</td><td class="fields">g:</td><td class="fields">b:</td></tr>
+    <tr class="essential"><td>Yellow</td><td class="fields">&nbsp;</td><td class="fields">r:</td><td class="fields">g:</td><td class="fields">b:</td></tr>
+  </table>
+
+  <h2>Optional — for a fuller 12-colour fit later</h2>
+  <table>
+    <tr><th>Colour</th><th>Brick used (note the part/colour name)</th><th colspan="3">r, g, b</th></tr>
+    <tr class="optional"><td>Violet</td><td class="fields">&nbsp;</td><td class="fields">r:</td><td class="fields">g:</td><td class="fields">b:</td></tr>
+    <tr class="optional"><td>Light blue / azure</td><td class="fields">&nbsp;</td><td class="fields">r:</td><td class="fields">g:</td><td class="fields">b:</td></tr>
+    <tr class="optional"><td>Orange</td><td class="fields">&nbsp;</td><td class="fields">r:</td><td class="fields">g:</td><td class="fields">b:</td></tr>
+    <tr class="optional"><td>Purple</td><td class="fields">&nbsp;</td><td class="fields">r:</td><td class="fields">g:</td><td class="fields">b:</td></tr>
+    <tr class="optional"><td>Cyan / teal</td><td class="fields">&nbsp;</td><td class="fields">r:</td><td class="fields">g:</td><td class="fields">b:</td></tr>
+    <tr class="optional"><td>Silver</td><td class="fields">&nbsp;</td><td class="fields">r:</td><td class="fields">g:</td><td class="fields">b:</td></tr>
+  </table>
+
+  <footer>
+    Once filled in, send the numbers back to fit TCS_CCM/TCS_CCM_BIAS in
+    firmware/components/sensor/sensor_transform.c. See docs/colour-calibration.md for background
+    on why a single white-point calibration can't fix this class of error.
+  </footer>
+</body>
+</html>

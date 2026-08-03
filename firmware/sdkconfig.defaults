@@ -1,0 +1,59 @@
+# --- MultiController default sdkconfig ---
+# Applied on first build; edit via `idf.py menuconfig` after that.
+
+# Target
+CONFIG_IDF_TARGET="esp32s3"
+
+# Custom partition table (room for the NimBLE-heavy app + NVS)
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# Flash: assume 4MB minimum (raise to 8/16MB for bigger modules)
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="4MB"
+
+# --- Bluetooth: NimBLE host, BLE only, dual role (peripheral + central) ---
+# Peripheral = web-app link; Central = BLE-HID gamepad host (Xbox Series). See hid_host.
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_CONTROLLER_ENABLED=y
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=y
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=y
+# web app + gamepad = 2 simultaneous connections
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=2
+# Security: LE Secure Connections + bonding, persisted to NVS so the controller reconnects
+CONFIG_BT_NIMBLE_SM_SC=y
+CONFIG_BT_NIMBLE_NVS_PERSIST=y
+# Larger ATT MTU so framed messages need fewer round trips
+CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=512
+# The msys_2 pool's default 320-byte blocks/24 count was sized before ATT_PREFERRED_MTU was
+# raised to 512 — a full-MTU notify chunk (up to 509 bytes) no longer fits in one block, so
+# every chunk silently burned 2 chained blocks instead of 1, and a config with several colour-
+# sensor palettes could exhaust the whole pool mid-response (BLE_HS_ENOMEM / mbuf alloc
+# returning NULL, truncating the message). Block size now comfortably covers one full MTU
+# chunk single-block, with more blocks for headroom under concurrent reading-notification load.
+#
+# 32 blocks was still not enough headroom once BOTH NimBLE roles are active at once — this board
+# runs peripheral (web app link) AND central (BLE-HID gamepad host) simultaneously, and the msys
+# pool is shared process-wide across both, not per-role. Sensor-reading notifies to the web app,
+# hid_set_state command/responses, and the central role's own HID-report traffic from a real pad
+# all draw from the same 32 blocks, and still hit BLE_HS_ENOMEM (ble_att_svr_pkt rc=6) under
+# combined load even after app-level notify-rate throttling (see ble_svc.c's notify_allowed).
+# Bumped block count and the ACL transport buffer count that feeds data down to the controller —
+# undersized at its stock default of 24 for the same full-MTU chunk size reasoning above (each
+# 509-byte chunk fragments into ~2 of the controller's 255-byte ACL buffers, so full-MTU traffic
+# burns this pool roughly twice as fast as its default count was sized for).
+CONFIG_BT_NIMBLE_MSYS_2_BLOCK_COUNT=48
+CONFIG_BT_NIMBLE_MSYS_2_BLOCK_SIZE=600
+CONFIG_BT_NIMBLE_TRANSPORT_ACL_FROM_LL_COUNT=36
+
+# --- FreeRTOS ---
+CONFIG_FREERTOS_HZ=1000
+
+# --- Logging ---
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# --- Main task stack (config/JSON work) ---
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144

@@ -1,0 +1,11 @@
+# Name,   Type, SubType, Offset,   Size,   Flags
+# Custom table for a single ~2MB app with NVS for sensor config.
+# Fits 4MB flash; enlarge `factory` for bigger modules if desired.
+# nvs bumped from 24 KiB to 152 KiB (0x26000): the store now keeps a primary blob PLUS a
+# rotating backup generation (corruption-resilience — see config_store.c), so a multi-sensor
+# config with taught colours/LEGO fields needs roughly double what a single copy would (observed:
+# ESP_ERR_NVS_NOT_ENOUGH_SPACE on a ~10-12 KB config in the old 24 KiB partition). Plenty of
+# headroom for future growth too — flash has ~2MB to spare either way.
+nvs,      data, nvs,     0x9000,   0x26000,
+phy_init, data, phy,     0x2f000,  0x1000,
+factory,  app,  factory, 0x30000,  0x200000,
