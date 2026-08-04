@@ -16,6 +16,10 @@ web/dist/
 web/.vite/
 *.local
 
+# GitHub Pages — allow /pages/app/ (built web app) but ignore /pages/app/node_modules
+pages/app/node_modules/
+!pages/app/
+
 # Demo GIF/WebM generation — intermediate frames (see scripts/generate-demo.mjs)
 scripts/_demo_frames/
 

@@ -290,7 +290,7 @@ export function App() {
     abortControllerRef.current = new AbortController();
     setBusy(label);
     try {
-      let timeoutId: NodeJS.Timeout | null = null;
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
       if (timeoutMs > 0) {
         timeoutId = setTimeout(() => {
           abortControllerRef.current?.abort();
