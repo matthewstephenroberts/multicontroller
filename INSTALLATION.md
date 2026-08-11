@@ -84,7 +84,7 @@ After flashing the firmware:
 
 ## Next steps
 
-- [📖 Full Hackster.io guide](https://www.hackster.io/) — building, wiring, and classroom setup
+- [📖 Full Hackster.io guide](https://www.hackster.io/matthew-stephen-roberts/multicontroller-keeping-retiring-lego-education-sets-alive-0b24bf) — building, wiring, and classroom setup
 - [`docs/ble-protocol.md`](docs/ble-protocol.md) — Bluetooth message format (for developers)
 - [`docs/wiring.md`](docs/wiring.md) — Pin maps and detailed hardware connections
 - [`docs/sensors.md`](docs/sensors.md) — Supported sensors and their properties

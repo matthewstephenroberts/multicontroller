@@ -4,7 +4,7 @@
 
 Configure any mix of M5Stack Unit sensors (colour, distance, 8-angle, step16, and more) from your phone or laptop, no reprogramming needed. Perfect for rescuing old LEGO kits in the classroom.
 
-**[📖 Read the full Hackster.io project guide](https://www.hackster.io/matthewstephenroberts/multicontroller)** — step-by-step build instructions, wiring diagrams, and classroom tips.
+**[📖 Read the full Hackster.io project guide](https://www.hackster.io/matthew-stephen-roberts/multicontroller-keeping-retiring-lego-education-sets-alive-0b24bf)** — step-by-step build instructions, wiring diagrams, and classroom tips.
 
 ---
 
@@ -60,7 +60,7 @@ live dashboard.
 - 📖 [**Installation Guide**](INSTALLATION.md) — How to install pre-built firmware or desktop app
 - 🛠️ [**Development Guide**](DEVELOPMENT.md) — For developers who want to modify or extend the code
 - 🤝 [**Contributing**](CONTRIBUTING.md) — How to add sensor drivers or improve the project
-- 📚 [**Full Hackster.io guide**](https://www.hackster.io/matthewstephenroberts/multicontroller) — Step-by-step build instructions
+- 📚 [**Full Hackster.io guide**](https://www.hackster.io/matthew-stephen-roberts/multicontroller-keeping-retiring-lego-education-sets-alive-0b24bf) — Step-by-step build instructions
 
 ## Quick start (helper scripts)
 
