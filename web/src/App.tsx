@@ -150,6 +150,12 @@ export function App() {
   const [busy, setBusy] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [tab, setTab] = useState<TabId>("sensors");
+  // Set when the scanner's "already added" chip is clicked: switches to the Sensors tab and
+  // tells SensorConfigForm which sensor card to open (it shows one at a time, behind a type
+  // filter, so simply switching tabs could land on a different sensor entirely). Cleared by
+  // the form once it has focused, so re-clicking the same chip works again.
+  const [focusSensorId, setFocusSensorId] = useState<number | null>(null);
+  const goToSensor = (id: number) => { setFocusSensorId(id); setTab("sensors"); };
   const abortControllerRef = useRef<AbortController | null>(null);
   const [pollingCap, setPollingCap] = useState<number>(0);
   const [verboseDebug, setVerboseDebugState] = useState<boolean>(false);
@@ -993,12 +999,15 @@ export function App() {
                 onAdd={(d) => setConfig((c) => [...c, sensorFromDiscovered(d, c)])}
                 onAddGamepad={() => setConfig((c) => [...c, newGamepadSensor(c)])}
                 onUseDisplay={useDisplay}
+                onGoToSensor={goToSensor}
               />
             )}
 
             {tab === "sensors" && (
               <SensorConfigForm
                 config={config}
+                focusSensorId={focusSensorId}
+                onFocusHandled={() => setFocusSensorId(null)}
                 spiCsCount={board.spi_cs_count}
                 hasUart={board.has_uart}
                 displayEnabled={display.enabled}

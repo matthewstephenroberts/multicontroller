@@ -12,6 +12,11 @@ import { AlertTriangle, Timer, Ruler, Target } from "lucide-react";
 
 interface Props {
   config: Sensor[];
+  // Open this sensor's card on arrival (the scanner's "already added" chip links here). The card
+  // list shows one sensor at a time behind a type filter, so switching tabs alone would leave
+  // whatever was previously selected on screen. Cleared via onFocusHandled once applied.
+  focusSensorId?: number | null;
+  onFocusHandled?: () => void;
   spiCsCount: number; // BOARD_SPI_CS_COUNT reported by the board — 0 = no SPI sensor slots wired at all
   hasUart?: boolean; // board capability reported by get_config — false = no aux UART wired at all
   displayEnabled: boolean;
@@ -84,6 +89,17 @@ export function SensorConfigForm(p: Props) {
   // physical spot just recaptures the same collision, so the palette needs to tell the user
   // when they've actually moved far enough before they click Teach again.
   const [focusColours, setFocusColours] = useState<{ sensorId: number; warnings: ProximityWarning[] } | null>(null);
+  // Arriving from the scanner's "already added" chip: clear the type filter (the target sensor
+  // may be hidden behind a different one) and select its card — the same two steps handleReteach
+  // below performs for its own cross-navigation.
+  useEffect(() => {
+    if (p.focusSensorId == null) return;
+    if (!p.config.some((s) => s.id === p.focusSensorId)) return;   // removed since the click
+    setTypeTab("all");
+    setSelectedId(p.focusSensorId);
+    p.onFocusHandled?.();
+  }, [p.focusSensorId, p.config]);
+
   const handleReteach = (sensorId: number, warnings: ProximityWarning[]) => {
     setTypeTab("all"); // the flagged sensor might be hidden behind a different type filter
     setSelectedId(sensorId);

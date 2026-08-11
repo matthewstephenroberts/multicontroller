@@ -551,7 +551,9 @@ export function Dashboard(p: Props) {
 
   return (
     <>
-    <section className="card">
+    {/* `dash` scopes the dense spacing in styles.css to the dashboard only — the same .card and
+        .reading rules are shared with the config forms, which want the roomier default. */}
+    <section className="card dash">
       <div className="card-head">
         <h2>
           Live data

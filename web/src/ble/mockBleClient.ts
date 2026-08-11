@@ -66,6 +66,17 @@ function buildDemoDefaults(): DemoStore {
     return s;
   };
 
+  // Every type in NAMED_TYPES gets an instance, so demo mode can exercise each one's own editor
+  // controls, dashboard card and LEGO-field behaviour without the hardware — previously only
+  // tcs34725/vl53l1x/m5_8angle/gamepad existed, and the other 17 types had no way to be tried at
+  // all (the ones the scanner can't identify by address — SPI, DA-pin, module boards — couldn't
+  // even be reached through demo Scan). Addresses/buses mirror what bus_scan.c actually reports
+  // for each part, so what demo mode shows lines up with a real scan.
+  //
+  // `show` (the onboard display) stays limited to the curated four: every sensor still streams
+  // and appears in the Sensors tab and the LEGO field pickers, but the little TFT is a 3x3-ish
+  // space and showing 20 sensors on it isn't a useful default. Four types are deliberately left
+  // out of this list and offered through Scan instead, so demo Scan still finds something new.
   add(
     { bus: "i2c", addr: 0x29, guess: "tcs34725" },
     { name: "colour-sensor", transform: "col_rgb255", show: true },
@@ -80,6 +91,48 @@ function buildDemoDefaults(): DemoStore {
   );
   const pad = { ...newGamepadSensor(sensors), name: "gamepad" };
   sensors = [...sensors, pad];
+
+  // --- environment / motion / power (I2C, all address-identifiable) ---
+  add({ bus: "i2c", addr: 0x76, guess: "bmp280" }, { name: "pressure" });
+  // 0x76/0x77 guess as bmp280 either way — the humidity element is what makes it a bme280, and
+  // the user picks the right one when adding, exactly as the scanner's own comment says.
+  add({ bus: "i2c", addr: 0x77, guess: "bmp280" }, { name: "weather", type: "bme280" });
+  add({ bus: "i2c", addr: 0x6b, guess: "qmi8658" }, { name: "imu", transform: "imu_orient", show: true });
+  // Onboard AtomS3R stack — no address/mux, the driver ignores that config entirely.
+  add({ bus: "i2c", guess: "bmi270_bmm150" }, { name: "onboard-imu", transform: "imu_orient9" });
+  add({ bus: "i2c", addr: 0x40, guess: "ina226" }, { name: "battery" });
+  add({ bus: "i2c", addr: 0x65, guess: "vk36n16" }, { name: "touch-keys" });
+
+  // --- distance module boards: no ID register, so the scanner can't guess these types ---
+  add({ bus: "i2c", addr: 0x52, guess: "unknown" }, { name: "tof-module", type: "tof10120" });
+  add({ bus: "i2c", addr: 0x08, guess: "unknown" }, { name: "tof-generic", type: "tofi2c" });
+
+  // --- board DA pins: no bus device at all, `port` is the GPIO (see BOARD_DA_PINS) ---
+  add({ bus: "i2c", guess: "unknown" }, { name: "button-pin", type: "gpio", port: 18 });
+  add({ bus: "i2c", guess: "unknown" }, { name: "analog-pin", type: "adc", port: 17, transform: "adc_volts" });
+
+  // --- SPI: no addressing scheme, so the scanner reports CS lines as "unknown" (BUS_DRIVER_TYPES)
+  // and the type is always picked by hand. qre1113/tssp_ir use channel_mask for the grouped
+  // multi-channel shape (a line-follower bar / IR ring read as one sensor).
+  add({ bus: "spi", cs_index: 0, guess: "unknown" }, { name: "adc-8ch", type: "mcp3208", port: 0 });
+  add(
+    { bus: "spi", cs_index: 0, guess: "unknown" },
+    { name: "line-array", type: "qre1113", channel_mask: 0b00001111, transform: "line_reflect" },
+  );
+  add(
+    { bus: "spi", cs_index: 0, guess: "unknown" },
+    { name: "ir-ring", type: "tssp_ir", channel_mask: 0b00000111, transform: "ir_ball" },
+  );
+
+  // --- generic: the custom register-recipe escape hatch, with a recipe that actually decodes ---
+  add(
+    { bus: "i2c", addr: 0x5a, guess: "unknown" },
+    {
+      name: "custom-device",
+      type: "generic",
+      recipe: { reg: 0x00, length: 2, byte_order: "be", signed: false, scale: 0.1, offset: 0, value_names: ["level"] },
+    },
+  );
 
   const display: DisplayConfig = { ...defaultDisplay(), enabled: true, mode: "tiles" };
 
@@ -113,6 +166,21 @@ function demoScanResults(): Discovered[] {
   return [
     { bus: "i2c", addr: 0x39, guess: "as7341" },
     { bus: "i2c", addr: 0x48, guess: "m5_step16" },
+    // The mux itself must be reported for anything behind it to be visible: SensorScanner only
+    // renders a mux-attached device inside the group for its `kind: "mux"` entry, so a device
+    // carrying a mux_addr with no matching mux entry is dropped from BOTH lists and shows up
+    // nowhere at all. Real firmware reports detected muxes the same way (bus_scan.c step 1b),
+    // and the demo's default sensors already sit on this 0x70 mux.
+    { bus: "i2c", kind: "mux", addr: 0x70, channels: 8, guess: "tca9548a" },
+    // vl53l0x shares 0x29 with tcs34725/vl53l1x on real hardware — the scanner tells them apart
+    // by chip ID. Behind the mux, like the vl53l1x already in the default list.
+    { bus: "i2c", addr: 0x29, mux_addr: 0x70, channel: 2, guess: "vl53l0x" },
+    // Wired SPI chip-selects. Real firmware reports every CS line it has (bus_scan.c step 4) and
+    // always as "unknown" — SPI has no addressing or ID scheme to probe, so the type is picked by
+    // hand from BUS_DRIVER_TYPES.spi (mcp3208 / qre1113 / tssp_ir / generic). Without these, that
+    // whole add-flow — the one used for every SPI sensor — had nothing to demonstrate it.
+    { bus: "spi", cs_index: 0, guess: "unknown" },
+    { bus: "spi", cs_index: 1, guess: "unknown" },
   ];
 }
 

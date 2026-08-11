@@ -209,6 +209,13 @@ export interface ModeValue {
   unit: string;
   min: number;
   max: number;
+  // Continuous quantity: every value in [min,max] is meaningful, not just the integers.
+  // Identity scaling ("send round(value) as-is") is only lossless for integer-valued readings —
+  // applied to a continuous one it quantizes to whole units, which for a narrow range destroys
+  // the reading: a calibrated 0-1 reflectance collapses to 0 or 1, and 0-3.3V to four steps.
+  // The range alone can't distinguish the two cases (a 0-1 reflectance and a 0/1 detected flag
+  // look identical), so it's marked here and defaultScaleOffset always fits proportionally.
+  cont?: boolean;
 }
 export interface DriverMode {
   id: string; // matches cfg.transform
@@ -217,6 +224,8 @@ export interface DriverMode {
 }
 
 const C = (name: string, unit: string, min: number, max: number): ModeValue => ({ name, unit, min, max });
+// Continuous counterpart of C() — see ModeValue.cont.
+const K = (name: string, unit: string, min: number, max: number): ModeValue => ({ name, unit, min, max, cont: true });
 
 export const DRIVER_MODES: Record<string, DriverMode[]> = {
   bme280: [
@@ -265,15 +274,15 @@ export const DRIVER_MODES: Record<string, DriverMode[]> = {
     { id: "raw", label: "raw counts", values: [C("clear", "", 0, 65535), C("red", "", 0, 65535), C("green", "", 0, 65535), C("blue", "", 0, 65535)] },
     { id: "col_rgb255", label: "RGB 0-255", values: [C("r", "", 0, 255), C("g", "", 0, 255), C("b", "", 0, 255)] },
     { id: "col_hue", label: "HSV", values: [C("hue", "°", 0, 360), C("sat", "%", 0, 100), C("val", "%", 0, 100)] },
-    { id: "col_lego", label: "LEGO colour id (SPIKE)", values: [C("colour", "", -1, 10)] },
-    { id: "col_full", label: "colour + reflect + RGB + raw clear (passthrough)", values: [C("colour", "", -1, 10), C("reflect", "%", 0, 100), C("r", "", 0, 1024), C("g", "", 0, 1024), C("b", "", 0, 1024), C("clear", "", 0, 65535)] },
+    { id: "col_lego", label: "LEGO colour id (SPIKE)", values: [C("colour", "", -1, 11)] },
+    { id: "col_full", label: "colour + reflect + RGB + raw clear (passthrough)", values: [C("colour", "", -1, 11), C("reflect", "%", 0, 100), C("r", "", 0, 1024), C("g", "", 0, 1024), C("b", "", 0, 1024), C("clear", "", 0, 65535)] },
   ],
   as7341: [
     // Full scale 40000: the 10000-count ADC ceiling × the driver's 4x count scaling (see
     // drv_as7341.c AS7341_COUNT_SCALE) — not the 16-bit register maximum.
     { id: "raw", label: "raw spectral (F1-F8,Clear,NIR)", values: [C("F1", "", 0, 40000), C("F2", "", 0, 40000), C("F3", "", 0, 40000), C("F4", "", 0, 40000), C("F5", "", 0, 40000), C("F6", "", 0, 40000), C("F7", "", 0, 40000), C("F8", "", 0, 40000), C("clear", "", 0, 40000), C("nir", "", 0, 40000)] },
-    { id: "as_lego", label: "LEGO colour (spectral, SPIKE)", values: [C("colour", "", -1, 10)] },
-    { id: "as_full", label: "colour + reflect + RGB + raw clear (passthrough)", values: [C("colour", "", -1, 10), C("reflect", "%", 0, 100), C("r", "", 0, 1024), C("g", "", 0, 1024), C("b", "", 0, 1024), C("clear", "", 0, 40000)] },
+    { id: "as_lego", label: "LEGO colour (spectral, SPIKE)", values: [C("colour", "", -1, 11)] },
+    { id: "as_full", label: "colour + reflect + RGB + raw clear (passthrough)", values: [C("colour", "", -1, 11), C("reflect", "%", 0, 100), C("r", "", 0, 1024), C("g", "", 0, 1024), C("b", "", 0, 1024), C("clear", "", 0, 40000)] },
     { id: "as_dist", label: "colour match scores", values: [C("black", "", 0, 100), C("white", "", 0, 100), C("red", "", 0, 100), C("yellow", "", 0, 100), C("green", "", 0, 100), C("lblue", "", 0, 100), C("blue", "", 0, 100), C("violet", "", 0, 100)] },
   ],
   // vl53l1x / tof10120 / tofi2c (distance sensors) are built dynamically by distModes()
@@ -300,22 +309,22 @@ export const DRIVER_MODES: Record<string, DriverMode[]> = {
   ],
   adc: [
     { id: "raw", label: "ADC counts", values: [C("counts", "", 0, 4095)] },
-    { id: "adc_volts", label: "volts", values: [C("volts", "V", 0, 3.3)] },
+    { id: "adc_volts", label: "volts", values: [K("volts", "V", 0, 3.3)] },
   ],
   mcp3208: [
     { id: "raw", label: "ADC counts", values: [C("counts", "", 0, 4095)] },
-    { id: "adc_volts", label: "volts", values: [C("volts", "V", 0, 3.3)] },
+    { id: "adc_volts", label: "volts", values: [K("volts", "V", 0, 3.3)] },
   ],
   // qre1113/tssp_ir single-channel (channel_mask unset) fall back to these; a grouped sensor
   // (channel_mask set) gets its modes built dynamically by groupedModes() below, one name per
   // selected channel instead of one fixed set — see sensorModes().
   qre1113: [
     { id: "raw", label: "raw ADC counts (no scaling)", values: [C("counts", "", 0, 4095)] },
-    { id: "adc_volts", label: "volts (no scaling, just counts→V)", values: [C("volts", "V", 0, 3.3)] },
-    { id: "line_reflect", label: "reflectance (white-black) + detected — calibrated", values: [C("reflect", "", 0, 1), C("detected", "", 0, 1)] },
+    { id: "adc_volts", label: "volts (no scaling, just counts→V)", values: [K("volts", "V", 0, 3.3)] },
+    { id: "line_reflect", label: "reflectance (white-black) + detected — calibrated", values: [K("reflect", "", 0, 1), C("detected", "", 0, 1)] },
   ],
   tssp_ir: [
-    { id: "ir_ball", label: "IR object + strength", values: [C("strength", "", 0, 1), C("detected", "", 0, 1)] },
+    { id: "ir_ball", label: "IR object + strength", values: [K("strength", "", 0, 1), C("detected", "", 0, 1)] },
   ],
   vk36n16: [
     { id: "raw", label: "key + bitmap + count", values: [C("key", "", -1, 15), C("bitmap", "", 0, 65535), C("count", "", 0, 16)] },
@@ -358,16 +367,16 @@ function groupedModes(s: Sensor): DriverMode[] {
   const chans = channelList(s.channel_mask ?? 0);
   const raw: DriverMode = { id: "raw", label: "raw ADC counts (no scaling)", values: chans.map((c) => C(`ch${c}`, "", 0, 4095)) };
   if (s.type === "qre1113") {
-    const volts: DriverMode = { id: "adc_volts", label: "volts (no scaling, just counts→V)", values: chans.map((c) => C(`ch${c}_volts`, "V", 0, 3.3)) };
+    const volts: DriverMode = { id: "adc_volts", label: "volts (no scaling, just counts→V)", values: chans.map((c) => K(`ch${c}_volts`, "V", 0, 3.3)) };
     const reflect: DriverMode = {
       id: "line_reflect", label: "reflectance (white-black) + detected — calibrated",
-      values: chans.flatMap((c) => [C(`ch${c}_reflect`, "", 0, 1), C(`ch${c}_detected`, "", 0, 1)]),
+      values: chans.flatMap((c) => [K(`ch${c}_reflect`, "", 0, 1), C(`ch${c}_detected`, "", 0, 1)]),
     };
     return [raw, volts, reflect];
   }
   const irObject: DriverMode = {
     id: "ir_ball", label: "IR object + strength",
-    values: chans.flatMap((c) => [C(`ch${c}_strength`, "", 0, 1), C(`ch${c}_detected`, "", 0, 1)]),
+    values: chans.flatMap((c) => [K(`ch${c}_strength`, "", 0, 1), C(`ch${c}_detected`, "", 0, 1)]),
   };
   return [irObject];
 }
@@ -783,6 +792,13 @@ export function packLego(fields: LegoField[], readings: Record<number, Reading>)
     let raw = Math.round((value - f.offset) / scale);
 
     if (target !== LEGO_TARGET_RGBI) {
+      // A negative value on COLOR is the classifier's "no colour" -1, sent as 0xFF (the hub reads
+      // it back as -1) rather than clamped to 0/black — see current_color_reflt(). REFLT is a
+      // plain 0-100 percentage with no sentinel, so it still clamps.
+      if (raw < 0 && target === LEGO_TARGET_COLOR) {
+        color = LEGO_COLOUR_NONE;
+        return { sensorId: f.sensor_id, valueIndex: f.value_index, value, raw: LEGO_COLOUR_NONE, bits: f.bits, signed: f.signed, target };
+      }
       // current_color_reflt() clamps to a byte *before* the map lookup — a code that scaled
       // outside 0-255 is still a valid array index into colour_map once clamped.
       raw = Math.max(0, Math.min(255, raw));
@@ -791,18 +807,27 @@ export function packLego(fields: LegoField[], readings: Record<number, Reading>)
       return { sensorId: f.sensor_id, valueIndex: f.value_index, value, raw, bits: f.bits, signed: f.signed, target };
     }
 
-    // current_rgbi() looks the map up on the *unclamped* raw, then clamps the *result* to the
-    // field's own bit width — clamp raw to >=0 first (a negative index has no meaning here and
-    // isn't safe on the firmware's fixed-size C array either).
+    // current_rgbi() looks the map up on the *unclamped* raw and treats any out-of-table index —
+    // negative as well as past the end — as "no colour". Clamping a negative index to 0 here
+    // instead (as this once did) reported colour_map[0] for values the device actually sends 255
+    // for, and did so precisely for the signed stick codes the map feature exists to serve.
     if (f.colour_map) {
-      const idx = Math.max(0, raw);
-      raw = idx < f.colour_map.length ? f.colour_map[idx] : LEGO_COLOUR_NONE;
+      raw = (raw >= 0 && raw < f.colour_map.length) ? f.colour_map[raw] : LEGO_COLOUR_NONE;
     }
 
     // Optional second-stage output scaling: map field raw value to custom LEGO output range
     // e.g., 0-15 (4-bit) → 48-108 (piano scale): output_scale=4, output_offset=48
     if (f.output_scale && f.output_scale !== 0) {
       raw = Math.round(raw * f.output_scale + (f.output_offset ?? 0));
+    }
+
+    // Budget stop, matching current_rgbi()'s `if (bitoff + bits > MC_LEGO_TOTAL_BITS) break;` —
+    // a field that doesn't fit the 64-bit word is dropped whole by the device, not truncated.
+    // Without this the preview kept shifting and silently lost the high bits instead, so an
+    // over-budget config (which the editor flags but still lets you save) previewed differently
+    // from what the hub would actually receive.
+    if (Number(bitoff) + f.bits > LEGO_TOTAL_BITS) {
+      return { sensorId: f.sensor_id, valueIndex: f.value_index, value, raw: 0, bits: f.bits, signed: f.signed, target };
     }
 
     const mask = (1 << f.bits) - 1; // bits ≤ 16, safe in a JS number
@@ -875,6 +900,30 @@ export function emptyRecipe(): Recipe {
 
 // Build a Sensor from a scanned device, with sensible defaults.
 let nextId = 1;
+// Does `s` already represent the physical device `d`? Identity is the wiring, not the type: the
+// scan's `guess` is a hint the user can override when adding (a 0x76 reported as bmp280 added as
+// a bme280 is still the same chip on the same pins), so matching on type would call that a
+// different device and offer to add it a second time.
+//
+// Per bus, "the wiring" means:
+//   i2c  — address plus which mux/channel it sits behind (0 / -1 when direct, matching how
+//          sensorFromDiscovered defaults them, so a direct device compares equal either way)
+//   spi  — the chip-select line; SPI has no addressing, so CS *is* the identity. A grouped
+//          mcp3208-backed sensor (qre1113/tssp_ir reading several channels) shares one CS, which
+//          is correct: the scan found one chip, and one sensor entry already covers it.
+//   uart — the port.
+// A builtin (the AtomS3R's onboard bmi270_bmm150) has no address or pins to compare at all, so
+// its driver type is the only identity available.
+export function sensorMatchesDiscovered(s: Sensor, d: Discovered): boolean {
+  if (s.bus !== d.bus) return false;
+  if (d.builtin) return s.type === d.guess;
+  if (d.bus === "spi") return (s.cs_index ?? 0) === (d.cs_index ?? 0);
+  if (d.bus === "uart") return (s.port ?? 0) === (d.port ?? 0);
+  return (s.addr ?? 0) === (d.addr ?? 0) &&
+         (s.mux_addr ?? 0) === (d.mux_addr ?? 0) &&
+         (s.mux_channel ?? -1) === (d.channel ?? -1);
+}
+
 export function sensorFromDiscovered(d: Discovered, existing: Sensor[]): Sensor {
   const used = new Set(existing.map((s) => s.id));
   while (used.has(nextId)) nextId++;

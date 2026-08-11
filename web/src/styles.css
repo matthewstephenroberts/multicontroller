@@ -1275,3 +1275,128 @@ table.grid td { padding: 8px; border-bottom: 1px solid var(--line); }
 
 /* ---- Welcome screen: Brix the mascot replacing the plain brick row ---- */
 .welcome .mascot-wrap { display: flex; justify-content: center; }
+
+/* ---- LEGO field editor: dense row layout ----
+   One field is one line. The generic .sensor/.field styling is tuned for the sensor editor,
+   where a card holds a handful of controls and has room to breathe; a LEGO field packs a dozen
+   into the same card, and at the shared sizing each one ran to ~250px tall — so a four-field
+   config no longer fit on screen and the shape of the packing (which channel, how many bits)
+   was impossible to see at a glance. Everything below is scoped to .lego-field so the sensor
+   editor keeps its roomier layout. */
+.lego-field { padding: 8px 10px; margin-bottom: 8px; }
+.lego-field .fields { gap: 6px 10px; align-items: flex-end; }
+.lego-field .field { gap: 2px; }
+.lego-field .field span { font-size: 12px; line-height: 1.2; }
+.lego-field .field select { min-width: 0; padding: 5px 7px; font-size: 13px; }
+.lego-field .field input[type="number"] { width: 68px; padding: 5px 7px; font-size: 13px; }
+.lego-field .check { font-size: 12px; gap: 4px; }
+.lego-field button.ghost.sm { padding: 4px 8px; font-size: 12px; }
+
+/* Range cluster: label + min/max + the fit actions + the resulting step, read as one unit. */
+.lego-group { display: flex; align-items: flex-end; gap: 6px; }
+.lego-group-label {
+  font-size: 12px;
+  color: var(--muted);
+  align-self: center;
+  white-space: nowrap;
+}
+/* The derived step is an output, not a control — a chip keeps it legible without competing
+   with the buttons next to it. */
+.lego-field .step-chip {
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--panel-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 8px;
+  white-space: nowrap;
+  align-self: center;
+}
+
+/* Trailing actions hug the right edge so every card's Remove lands in the same place. */
+.lego-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.lego-field button.ghost.sm.icon-only {
+  padding: 2px 9px;
+  font-size: 17px;
+  line-height: 1.1;
+}
+
+/* output scale: collapsed by default, inline when open (see the JSX note). */
+.lego-adv > summary {
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  list-style: none;
+  padding: 4px 8px;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  user-select: none;
+}
+.lego-adv > summary::-webkit-details-marker { display: none; }
+.lego-adv > summary::before { content: "＋ "; opacity: 0.7; }
+.lego-adv[open] > summary::before { content: "－ "; }
+.lego-adv > summary:hover { color: var(--text); border-color: var(--muted); }
+.lego-adv[open] { display: flex; align-items: center; gap: 8px; }
+.lego-adv-body { display: flex; align-items: flex-end; gap: 6px; }
+
+.lego-field .lego-note { margin: 4px 0 0; padding: 0; color: var(--warn); font-size: 12px; }
+
+/* ---- LEGO Quick assign: compact slot grid ----
+   Six short rows, previously on a 220-280px capped grid that fit two per line on any width and
+   used the full-size control sizing. A narrower minimum with no cap lets three or four sit side
+   by side on a wide screen, and the control sizing matches the dense field editor below so the
+   two sections read as one panel rather than two different densities stacked. */
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px 12px;
+}
+.quick-slot { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.quick-slot-label {
+  min-width: 44px;
+  font-weight: 700;
+  font-size: 13px;
+}
+.quick-slot select { padding: 5px 7px; font-size: 13px; min-width: 0; }
+
+/* ---- Dashboard reading cards: denser ----
+   These are glanceable live values, and the point of the dashboard is seeing many sensors at
+   once — the old spacing (18px card padding, 12-14px per reading card, 20px values, 6px between
+   rows) meant a handful of sensors filled the viewport and the rest needed scrolling. Trimmed
+   rather than shrunk: the value stays the biggest thing on the card (17px, still clearly the
+   thing you read), and only the whitespace around it comes down. */
+.reading { padding: 8px 10px; border-radius: 8px; }
+.reading-head { margin-bottom: 6px; }
+.values { gap: 3px; }
+.vn { font-size: 12px; }
+.vv { font-size: 17px; }
+.reading-foot { margin-top: 6px; font-size: 11px; }
+/* The dashboard's own card carries `dash` itself (not a wrapper around cards), so these are
+   same-element rules, not descendant ones. */
+.card.dash { padding: 12px 14px; margin-bottom: 12px; }
+.card.dash .card-head { margin-bottom: 10px; }
+.card.dash .timeline-grid { row-gap: 6px; column-gap: 10px; }
+.card.dash .timeline-column { gap: 12px; }
+
+/* ---- Scan: "already added" state ----
+   A scanned device already in the sensor list shows what it became and links to it, instead of
+   another "+ Add". Styled as a settled/confirmed state (accent-2, the same colour the app uses
+   for healthy/OK elsewhere) rather than an action, so a full scan reads at a glance as "these
+   three are set up, this one isn't". */
+.added-state { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+button.ghost.sm.added-link {
+  color: var(--accent-2);
+  border-color: color-mix(in srgb, var(--accent-2) 45%, transparent);
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button.ghost.sm.added-link:hover {
+  border-color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent-2) 12%, transparent);
+}
+/* "+ again" is deliberately quiet — a rare escape hatch, not a peer of the link next to it. */
+.added-state button.ghost.xs { opacity: 0.65; }
+.added-state button.ghost.xs:hover { opacity: 1; }

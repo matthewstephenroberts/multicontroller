@@ -139,6 +139,41 @@ function isNativeSlotValue(sensors: Sensor[], sensorId: number, valueIndex: numb
   if (target === LEGO_TARGET_RGBI) return valueIndex >= 2 && valueIndex <= 4;
   return false;
 }
+// Small integer codes where -1 is a "nothing" sentinel rather than a real value: the classified
+// LEGO colour id (col_lego/as_lego/col_full/as_full index 0) and the vk36n16's key code. Like
+// bitmasks and discrete codes these must never be proportionally rescaled — a colour id IS the
+// number the hub looks up, so stretching it changes which colour is reported (id 6 "green" fitted
+// across a 4-bit field became raw 10, which the hub reads as white). col_full/as_full were
+// already covered by isNativeColourValue, but the dedicated col_lego/as_lego "LEGO colour id"
+// modes — the obvious thing to pick for this — were not, and their -1..11 range fails
+// fitsIdentity on the negative minimum, so they fell through to exactly that proportional fit.
+//
+// Deliberately NOT folded into isDiscreteCode(): changeFieldSource() turns a discrete code with a
+// negative minimum into a *signed* field, which for these would be wrong — a signed 4-bit field
+// tops out at 7 and would clip colour ids 8-11. The -1 is a sentinel the COLOR byte carries as
+// 255 (see the firmware's current_color_reflt), not a value needing a sign bit.
+function isCodeIdValue(sensors: Sensor[], sensorId: number, valueIndex: number): boolean {
+  const s = sensors.find((x) => x.id === sensorId);
+  if (!s) return false;
+  if (s.type === "vk36n16") return fieldValueNames(sensors, sensorId)[valueIndex] === "key";
+  const tf = s.transform;
+  if (tf === "col_lego" || tf === "as_lego") return valueIndex === 0;
+  if (tf === "col_full" || tf === "as_full") return valueIndex === 0;
+  return false;
+}
+
+// Identity scaling is only lossless for integer-valued readings. A continuous value (ModeValue
+// .cont — reflectance, IR strength, volts) must always be fitted proportionally, however
+// comfortably its range fits the field's raw capacity: 0-1 reflectance "fitting" a 1-bit field
+// means every reading collapses to 0 or 1, and 0-3.3V into 4 bits gives four steps.
+function identityAllowed(sensors: Sensor[], sensorId: number, valueIndex: number,
+                         min: number, max: number, bits: number, signed: boolean): boolean {
+  const s = sensors.find((x) => x.id === sensorId);
+  const meta = s ? sensorValueMeta(s, valueIndex) : undefined;
+  if (meta?.cont) return false;
+  return fitsIdentity(min, max, bits, signed);
+}
+
 // Whether [min, max] already fits the field's raw integer capacity as-is (identity: raw =
 // round(value), no scale/offset needed) — unsigned raw ranges 0..2^bits-1, signed
 // -2^(bits-1)..2^(bits-1)-1. If it fits, sending it unscaled is both simpler (no float multiply
@@ -193,13 +228,13 @@ function currentRange(sensors: Sensor[], f: LegoField, bits: number, signed: boo
 // (or becomes) signed.
 function defaultScaleOffset(sensors: Sensor[], sensorId: number, valueIndex: number, bits: number, signed = false): { scale: number; offset: number } {
   if (isBitmaskValue(sensors, sensorId, valueIndex) || isDiscreteCode(sensors, sensorId, valueIndex) ||
-      isNativeColourValue(sensors, sensorId, valueIndex)) {
+      isNativeColourValue(sensors, sensorId, valueIndex) || isCodeIdValue(sensors, sensorId, valueIndex)) {
     return { scale: 1, offset: 0 };
   }
   const s = sensors.find((x) => x.id === sensorId);
   const meta = s ? sensorValueMeta(s, valueIndex) : undefined;
   if (!meta) return { scale: 1, offset: 0 };
-  if (fitsIdentity(meta.min, meta.max, bits, signed)) return { scale: 1, offset: 0 };
+  if (identityAllowed(sensors, sensorId, valueIndex, meta.min, meta.max, bits, signed)) return { scale: 1, offset: 0 };
   return scaleFromRange(meta.min, meta.max, bits, signed);
 }
 
@@ -229,6 +264,12 @@ function suggestedBits(sensors: Sensor[], sensorId: number, valueIndex: number, 
   if (s && isDistanceSensor(s)) return 8;
   const meta = s ? sensorValueMeta(s, valueIndex) : undefined;
   if (!meta) return 16;
+  // Continuous values must be sized by the resolution they deserve, not by their span: the rules
+  // below read a span of 1 as "boolean" and a span of 3.3 as "4 bits", which is right for a
+  // detected flag or a dpad but gives a 0-1 reflectance a single bit and 0-3.3V four steps. 8
+  // bits is 256 steps across whatever the range is — plenty for these, and still cheap enough in
+  // the 64-bit budget to be a sane default the dropdown can widen to 16.
+  if (meta.cont) return 8;
   const span = meta.max - meta.min;
   if (span <= 1) return 1;     // boolean flag (detected, gpio state)
   if (span <= 3) return 2;
@@ -256,11 +297,15 @@ function bitsOptionsFor(sensors: Sensor[], sensorId: number, valueIndex: number,
     opts = [8, 16];
   } else if (isBitmaskValue(sensors, sensorId, valueIndex)) {
     opts = [16];
-  } else if (isDiscreteCode(sensors, sensorId, valueIndex) || isNativeColourValue(sensors, sensorId, valueIndex)) {
+  } else if (isDiscreteCode(sensors, sensorId, valueIndex) || isNativeColourValue(sensors, sensorId, valueIndex) ||
+             isCodeIdValue(sensors, sensorId, valueIndex)) {
     const s = sensors.find((x) => x.id === sensorId);
     const meta = s ? sensorValueMeta(s, valueIndex) : undefined;
+    // A code-id value's -1 is a sentinel, not a magnitude to reserve a bit for — sizing from
+    // |min| would push a 0..11 colour id to a wider field for a value it never actually sends.
+    const floorMag = meta ? (isCodeIdValue(sensors, sensorId, valueIndex) ? 0 : Math.abs(meta.min)) : 0;
     const needed = meta
-      ? (BITS_OPTIONS.find((b) => (1 << b) - 1 >= Math.max(meta.max, Math.abs(meta.min))) ?? 16)
+      ? (BITS_OPTIONS.find((b) => (1 << b) - 1 >= Math.max(meta.max, floorMag)) ?? 16)
       : 16;
     opts = [needed];
   } else {
@@ -902,24 +947,19 @@ export function LegoConfigForm(p: Props) {
     const bits = rgbi ? f.bits : 8;
     const signed = rgbi ? f.signed : false;
 
-    // Get the sensor's actual value range to properly scale it into the field's bit width
-    const s = p.sensors.find((x) => x.id === f.sensor_id);
-    const sensorMeta = s ? sensorValueMeta(s, f.value_index) : undefined;
-
-    if (sensorMeta && sensorMeta.min !== undefined && sensorMeta.max !== undefined && sensorMeta.max > sensorMeta.min) {
-      // Sensor has a defined range — map it into the field's raw bit range, then apply user's min/max
-      // First: sensor value range → field raw range (0..2^bits-1)
-      const { scale: scale1, offset: offset1 } = scaleFromRange(sensorMeta.min, sensorMeta.max, bits, signed);
-
-      // Combined: sensor → LEGO output via field raw
-      // raw = (sensor - offset1) / scale1
-      // output_scale and output_offset provide user-controlled second-stage scaling
-      updateField(idx, { scale: scale1, offset: offset1 });
-    } else {
-      // No sensor range info — assume user's min/max are for the field's raw bit range
-      const { scale, offset } = scaleFromRange(min, max, bits, signed);
-      updateField(idx, { scale, offset });
-    }
+    // The typed range IS the mapping: raw 0..2^bits-1 (or the signed equivalent) spans exactly
+    // [min, max]. An earlier version derived scale/offset from the *sensor's catalogue* range
+    // here and dropped the min/max arguments entirely, so hand-typing a range did nothing at all
+    // — and because currentRange() inverts scale/offset to redisplay it, the typed number
+    // immediately snapped back to the catalogue value, looking like the input was ignored.
+    // It was.
+    //
+    // Always via scaleFromRange, never the identity shortcut: identity remembers nothing beyond
+    // "fits the raw capacity", so a later bits/signed change could only recover the field's whole
+    // raw range rather than what was typed (see currentRange's notes). scaleFromRange is exactly
+    // invertible, so the typed endpoints survive.
+    const { scale, offset } = scaleFromRange(min, max, bits, signed);
+    updateField(idx, { scale, offset });
   };
   // Reseed a field's range from its sensor value's catalogue default (or scale=1/offset=0 as-is
   // for a bitmask/native-colour value — see defaultScaleOffset()).
@@ -1032,7 +1072,7 @@ export function LegoConfigForm(p: Props) {
     const f = l.fields[idx];
     const r = currentRange(p.sensors, f, f.bits, f.signed);
     const next = { ...f, ...patch };
-    const { scale, offset } = fitsIdentity(r.min, r.max, next.bits, next.signed)
+    const { scale, offset } = identityAllowed(p.sensors, f.sensor_id, f.value_index, r.min, r.max, next.bits, next.signed)
       ? { scale: 1, offset: 0 }
       : scaleFromRange(r.min, r.max, next.bits, next.signed);
     updateField(idx, { ...patch, scale, offset });
@@ -1296,14 +1336,17 @@ export function LegoConfigForm(p: Props) {
             </h4>
             <span className="muted sm">the 6 things a real LEGO sensor can send</span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 280px))", gap: 8 }}>
+          {/* Denser than a fixed 220-280px grid: the six slots are short rows, so a narrower
+              minimum lets three or four sit side by side on a wide screen instead of two, and
+              the compact control sizing matches the field editor below. */}
+          <div className="quick-grid">
             {QUICK_SLOTS.map(({ slot, label }) => {
               const f = findQuickField(l.fields, slot);
               const sensorId = f ? f.sensor_id : QUICK_UNUSED;
               const names = f ? fieldValueNames(p.sensors, f.sensor_id) : [];
               return (
-                <div className="row gap" key={String(slot)} style={{ alignItems: "center" }}>
-                  <span style={{ minWidth: 46, fontWeight: 700 }}>{label}</span>
+                <div className="quick-slot" key={String(slot)}>
+                  <span className="quick-slot-label">{label}</span>
                   <select
                     value={sensorId}
                     style={{ flex: 1, minWidth: 0 }}
@@ -1426,7 +1469,7 @@ export function LegoConfigForm(p: Props) {
         // padding to reserve, so they get a much shorter row than a real field.
         if (isFiller(f)) {
           return (
-            <div className="sensor" key={i}>
+            <div className="sensor lego-field" key={i}>
               <div className="fields">
                 <Field label="ch">{chBadge}</Field>
                 <span className="muted" style={{ alignSelf: "center" }}>filler — padding, always 0</span>
@@ -1446,7 +1489,7 @@ export function LegoConfigForm(p: Props) {
         }
 
         return (
-          <div className="sensor" key={i}>
+          <div className="sensor lego-field" key={i}>
             <div className="fields">
               <Field label="ch">{chBadge}</Field>
 
@@ -1526,84 +1569,99 @@ export function LegoConfigForm(p: Props) {
                 </>
               )}
 
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <label style={{ fontSize: "0.85em", color: "var(--muted)" }}>
-                  sensor range
+              {/* Range + the three fit actions + the resulting step, as one visual group: they
+                  are a single thought ("what range, fitted how"), and grouping them is what lets
+                  the row stay one line instead of the buttons drifting off on their own. */}
+              <div className="lego-group">
+                <label className="lego-group-label">
+                  range
                   <HelpTip>
                     Specify the sensor's <b>usable value range</b>. The firmware automatically calculates scale/offset to map this range into the field's bit-width (e.g., 0-4095 sensor → 0-15 for a 4-bit field). Set min/max to the sensor values you care about, not the LEGO output range.
                   </HelpTip>
                 </label>
                 <NumField label="min" value={tidy(rng.min)} step={0.01} onChange={(v) => setRange(i, v, rng.max)} />
                 <NumField label="max" value={tidy(rng.max)} step={0.01} onChange={(v) => setRange(i, rng.min, v)} />
-              </div>
-              <button
-                className="ghost sm"
-                title={isBitmaskValue(p.sensors, f.sensor_id, f.value_index)
-                  ? "This is a bitmask — auto sets scale=1/offset=0 (raw bits as-is) instead of a proportional range fit"
-                  : isNativeColourValue(p.sensors, f.sensor_id, f.value_index)
-                    ? "This is already a native colour-sensor value (0-10 / 0-100 / 0-1024) — auto sets scale=1/offset=0 to send it exactly like real passthrough would, not stretched to fill the field"
-                    : "Set min/max from this value's default range"}
-                onClick={() => autoRange(i)}
-              >
-                auto
-              </button>
-              {target === LEGO_TARGET_RGBI && (
                 <button
                   className="ghost sm"
-                  title="Keep this exact min/max but force step=1 (raw code = real value, no proportional stretch) — widens the bit width to the narrowest option that fits instead of clamping"
-                  onClick={() => identityFit(i)}
+                  title={isBitmaskValue(p.sensors, f.sensor_id, f.value_index)
+                    ? "This is a bitmask — auto sets scale=1/offset=0 (raw bits as-is) instead of a proportional range fit"
+                    : isNativeColourValue(p.sensors, f.sensor_id, f.value_index)
+                      ? "This is already a native colour-sensor value (0-10 / 0-100 / 0-1024) — auto sets scale=1/offset=0 to send it exactly like real passthrough would, not stretched to fill the field"
+                      : "Set min/max from this value's default range"}
+                  onClick={() => autoRange(i)}
                 >
-                  1:1
+                  auto
                 </button>
-              )}
-              <button
-                className="ghost sm"
-                title="Keep this field's current bit width but proportionally stretch min/max to fill its whole raw range (e.g. 0-1300 into 8 bits → step ≈5.098) — trades precision for budget instead of widening bits or clipping"
-                onClick={() => stretchFit(i)}
-              >
-                x:y
-              </button>
-              <span className="muted sm" title="value change per encoder step">step {step}</span>
-              {isBitmaskValue(p.sensors, f.sensor_id, f.value_index) && f.scale !== 1 && (
-                <span className="muted sm" style={{ color: "var(--warn)" }} title="A bitmask field needs scale=1/offset=0 to keep individual bits intact — click auto to fix, or set them by hand">
-                  <AlertTriangle size={11} strokeWidth={2.25} className="inline-icon warn-icon" /> scale ≠ 1 on a bitmask — small button values may round to 0
-                </span>
-              )}
-              {isNativeColourValue(p.sensors, f.sensor_id, f.value_index) && f.scale !== 1 && (
-                <span className="muted sm" style={{ color: "var(--warn)" }} title="A native colour-sensor value needs scale=1/offset=0 to match what a real sensor sends — click auto to fix, or set them by hand">
-                  <AlertTriangle size={11} strokeWidth={2.25} className="inline-icon warn-icon" /> scale ≠ 1 on a native colour value — won't match real passthrough
-                </span>
-              )}
+                {target === LEGO_TARGET_RGBI && (
+                  <button
+                    className="ghost sm"
+                    title="Keep this exact min/max but force step=1 (raw code = real value, no proportional stretch) — widens the bit width to the narrowest option that fits instead of clamping"
+                    onClick={() => identityFit(i)}
+                  >
+                    1:1
+                  </button>
+                )}
+                <button
+                  className="ghost sm"
+                  title="Keep this field's current bit width but proportionally stretch min/max to fill its whole raw range (e.g. 0-1300 into 8 bits → step ≈5.098) — trades precision for budget instead of widening bits or clipping"
+                  onClick={() => stretchFit(i)}
+                >
+                  x:y
+                </button>
+                <span className="step-chip" title="value change per encoder step">step {step}</span>
+              </div>
 
-              {target === LEGO_TARGET_RGBI && (
-                <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--muted)" }}>
-                  <label style={{ fontSize: "0.85em", color: "var(--muted)" }}>
-                    output scale
-                    <HelpTip>
-                      Optional second-stage scaling to map the field's bit range (0..2^bits-1) to a custom LEGO output range.
-                      For example: 4-bit field (0-15) → piano scale (48-108) with scale=4, offset=48.
-                      Leave at 0 to disable.
-                    </HelpTip>
-                  </label>
-                  <NumField
-                    label="scale"
-                    value={f.output_scale ?? 0}
-                    step={0.01}
-                    onChange={(v) => updateField(i, { output_scale: v })}
-                  />
-                  <NumField
-                    label="offset"
-                    value={f.output_offset ?? 0}
-                    step={0.01}
-                    onChange={(v) => updateField(i, { output_offset: v })}
-                  />
-                </div>
-              )}
-
-              <button className="ghost sm danger" onClick={() => removeField(i)}>
-                Remove
-              </button>
+              {/* Trailing actions, pushed to the right edge. output scale is a <details> rather
+                  than an always-open row: it's an occasional second-stage tweak that sat at 0/0
+                  on nearly every field, so as a permanent full-width block (with its own divider)
+                  it roughly doubled each card's height to show two zeroes. It opens on its own
+                  whenever it actually holds a value, so a configured one is never hidden. */}
+              <div className="lego-actions">
+                {target === LEGO_TARGET_RGBI && (
+                  <details className="lego-adv" open={!!f.output_scale || !!f.output_offset}>
+                    <summary title="Optional second-stage scaling — map the field's bit range onto a custom LEGO output range">
+                      output scale
+                    </summary>
+                    <div className="lego-adv-body">
+                      <label className="lego-group-label">
+                        <HelpTip>
+                          Optional second-stage scaling to map the field's bit range (0..2^bits-1) to a custom LEGO output range.
+                          For example: 4-bit field (0-15) → piano scale (48-108) with scale=4, offset=48.
+                          Leave at 0 to disable.
+                        </HelpTip>
+                      </label>
+                      <NumField
+                        label="scale"
+                        value={f.output_scale ?? 0}
+                        step={0.01}
+                        onChange={(v) => updateField(i, { output_scale: v })}
+                      />
+                      <NumField
+                        label="offset"
+                        value={f.output_offset ?? 0}
+                        step={0.01}
+                        onChange={(v) => updateField(i, { output_offset: v })}
+                      />
+                    </div>
+                  </details>
+                )}
+                <button className="ghost sm danger icon-only" title="Remove this field" onClick={() => removeField(i)}>
+                  ×
+                </button>
+              </div>
             </div>
+            {/* Scale warnings live under the row, not in it: inside the flex row they stretched
+                it to an extra line the moment they appeared, shifting every control. */}
+            {isBitmaskValue(p.sensors, f.sensor_id, f.value_index) && f.scale !== 1 && (
+              <p className="muted sm lego-note" title="A bitmask field needs scale=1/offset=0 to keep individual bits intact — click auto to fix, or set them by hand">
+                <AlertTriangle size={11} strokeWidth={2.25} className="inline-icon warn-icon" /> scale ≠ 1 on a bitmask — small button values may round to 0
+              </p>
+            )}
+            {isNativeColourValue(p.sensors, f.sensor_id, f.value_index) && f.scale !== 1 && (
+              <p className="muted sm lego-note" title="A native colour-sensor value needs scale=1/offset=0 to match what a real sensor sends — click auto to fix, or set them by hand">
+                <AlertTriangle size={11} strokeWidth={2.25} className="inline-icon warn-icon" /> scale ≠ 1 on a native colour value — won't match real passthrough
+              </p>
+            )}
             {/* The COLOR/REFLT bytes are single slots on the emulated sensor: the firmware
                 walks the field list and the LAST field targeting that slot wins, so extra
                 fields aimed at the same byte are silently dead weight (current_color_reflt in

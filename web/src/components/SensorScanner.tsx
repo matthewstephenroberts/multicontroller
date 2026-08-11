@@ -1,35 +1,85 @@
 import { useState } from "react";
-import type { Discovered } from "../types";
-import { BUS_DRIVER_TYPES } from "../types";
+import type { Discovered, Sensor } from "../types";
+import { BUS_DRIVER_TYPES, sensorMatchesDiscovered } from "../types";
 import { HelpTip } from "./HelpTip";
 
 interface Props {
   discovered: Discovered[];
   knownIds: Set<number>;
   busy: string | null;
-  config: any;
+  config: Sensor[];
   onScan: () => void;
   onAdd: (d: Discovered) => void;
   onAddGamepad: () => void;
   onUseDisplay: (d: Discovered) => void;
+  // Jump to a sensor's card in the Sensors tab — used by the "already added" state below, so a
+  // device you've added is a link to its config rather than a dead end.
+  onGoToSensor: (id: number) => void;
 }
 
 function hex(n?: number): string {
   return n === undefined ? "—" : "0x" + n.toString(16).padStart(2, "0");
 }
 
-function AddBtn({ d, onAdd }: { d: Discovered; onAdd: (d: Discovered) => void }) {
+// A scanned device that's already in the sensor list shows what it was added as, and takes you
+// there — rather than offering "+ Add" again. Adding a second time is legal for a real device
+// (two entries can read the same chip in different modes), but as the *default* affordance it
+// reads as "this wasn't added yet" and quietly produces duplicates, which then compete for the
+// same address on every poll. Re-adding stays possible from the "add again" control.
+function AddBtn({ d, sensors, onAdd, onGoToSensor }: {
+  d: Discovered;
+  sensors: Sensor[];
+  onAdd: (d: Discovered) => void;
+  onGoToSensor: (id: number) => void;
+}) {
+  const matching = sensors.filter((s) => sensorMatchesDiscovered(s, d));
+  const existing = matching[0];
+  if (!existing) {
+    return (
+      <button className="ghost sm" onClick={() => onAdd(d)}>
+        + Add
+      </button>
+    );
+  }
+  // Several entries sharing one device is normal on SPI and unusual on I2C: an MCP3208 on a chip
+  // select is the bus for the qre1113/tssp_ir channels hanging off it, so a line-follower bar and
+  // an IR ring on the same chip are three legitimate sensors on one CS. On I2C the same address
+  // twice is far more likely to be an accidental duplicate. Same control either way, wording
+  // matched to which of the two you're actually looking at.
+  const spiShared = d.bus === "spi";
   return (
-    <button className="ghost sm" onClick={() => onAdd(d)}>
-      + Add
-    </button>
+    <span className="added-state">
+      <button
+        className="ghost sm added-link"
+        title={`Already added as "${existing.name}" (${existing.type})${
+          matching.length > 1 ? `, plus ${matching.length - 1} more on this ${spiShared ? "chip select" : "address"}` : ""
+        } — open it in the Sensors tab`}
+        onClick={() => onGoToSensor(existing.id)}
+      >
+        ✓ {existing.name}{matching.length > 1 ? ` +${matching.length - 1}` : ""}
+      </button>
+      <button
+        className="ghost xs"
+        title={spiShared
+          ? "Add another sensor that reads through this chip — e.g. more MCP3208 channels as a line-follower bar or IR ring"
+          : "Add a second sensor entry for this same device — only useful if you want to read it in two different modes at once"}
+        onClick={() => onAdd(d)}
+      >
+        + again
+      </button>
+    </span>
   );
 }
 
 // SPI/UART devices can't be identified by probing (no addressing/ID scheme), so the scan always
 // reports "unknown" for them — instead of just adding as "generic", let the user pick which
 // driver is actually wired up from that bus's named types before adding.
-function UnknownRow({ d, onAdd }: { d: Discovered; onAdd: (d: Discovered) => void }) {
+function UnknownRow({ d, sensors, onAdd, onGoToSensor }: {
+  d: Discovered;
+  sensors: Sensor[];
+  onAdd: (d: Discovered) => void;
+  onGoToSensor: (id: number) => void;
+}) {
   const types = BUS_DRIVER_TYPES[d.bus as "spi" | "uart"] ?? ["generic"];
   const [type, setType] = useState(types[0]);
   return (
@@ -42,7 +92,7 @@ function UnknownRow({ d, onAdd }: { d: Discovered; onAdd: (d: Discovered) => voi
         </select>
       </td>
       <td>
-        <AddBtn d={{ ...d, guess: type }} onAdd={onAdd} />
+        <AddBtn d={{ ...d, guess: type }} sensors={sensors} onAdd={onAdd} onGoToSensor={onGoToSensor} />
       </td>
     </>
   );
@@ -113,32 +163,52 @@ export function SensorScanner(p: Props) {
             </div>
           )}
 
-          {/* Bluetooth game controller */}
-          {!p.config.some((s: any) => s.type === "gamepad") && (
-            <div className="scan-group">
-              <div className="scan-group-head">
-                <span className="tag i2c">bluetooth</span>
-                <b>Game controller (BLE-HID)</b>
-                <span className="count">add & pair</span>
+          {/* Bluetooth game controller. The gamepad is virtual (no bus/address), so it can't go
+              through sensorMatchesDiscovered — its identity is simply "a gamepad sensor exists". This
+              group used to disappear entirely once one was added, which hid where the controller
+              had gone; it now shows the same "already added → open it" chip as every other row. */}
+          {(() => {
+            const pad = p.config.find((s) => s.type === "gamepad");
+            return (
+              <div className="scan-group">
+                <div className="scan-group-head">
+                  <span className="tag i2c">bluetooth</span>
+                  <b>Game controller (BLE-HID)</b>
+                  <span className="count">{pad ? "added" : "add & pair"}</span>
+                </div>
+                {!pad && (
+                  <p className="muted sm">
+                    Hold your Xbox Series controller's pair button until it flashes, then click Add.
+                    The board will scan for it automatically after you save.
+                  </p>
+                )}
+                <table className="grid">
+                  <tbody>
+                    <tr>
+                      <td>Xbox Series (BLE-HID)</td>
+                      <td>
+                        {pad ? (
+                          <span className="added-state">
+                            <button
+                              className="ghost sm added-link"
+                              title={`Already added as "${pad.name}" — open it in the Sensors tab (pairing lives on its card)`}
+                              onClick={() => p.onGoToSensor(pad.id)}
+                            >
+                              ✓ {pad.name}
+                            </button>
+                          </span>
+                        ) : (
+                          <button className="ghost sm" onClick={p.onAddGamepad}>
+                            + Add
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-              <p className="muted sm">
-                Hold your Xbox Series controller's pair button until it flashes, then click Add.
-                The board will scan for it automatically after you save.
-              </p>
-              <table className="grid">
-                <tbody>
-                  <tr>
-                    <td>Xbox Series (BLE-HID)</td>
-                    <td>
-                      <button className="ghost sm" onClick={p.onAddGamepad}>
-                        + Add
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Onboard chips with no discoverable address (e.g. AtomS3R's BMI270/BMM150) */}
           {builtinSensors.length > 0 && (
@@ -154,7 +224,7 @@ export function SensorScanner(p: Props) {
                     <tr key={i}>
                       <td>{d.guess} (built-in)</td>
                       <td>
-                        <AddBtn d={d} onAdd={p.onAdd} />
+                        <AddBtn d={d} sensors={p.config} onAdd={p.onAdd} onGoToSensor={p.onGoToSensor} />
                       </td>
                     </tr>
                   ))}
@@ -187,7 +257,7 @@ export function SensorScanner(p: Props) {
                           <td>{hex(d.addr)}</td>
                           <td>{d.guess}</td>
                           <td>
-                            <AddBtn d={d} onAdd={p.onAdd} />
+                            <AddBtn d={d} sensors={p.config} onAdd={p.onAdd} onGoToSensor={p.onGoToSensor} />
                           </td>
                         </tr>
                       ))}
@@ -213,7 +283,7 @@ export function SensorScanner(p: Props) {
                       <td>{hex(d.addr)}</td>
                       <td>{d.guess}</td>
                       <td>
-                        <AddBtn d={d} onAdd={p.onAdd} />
+                        <AddBtn d={d} sensors={p.config} onAdd={p.onAdd} onGoToSensor={p.onGoToSensor} />
                       </td>
                     </tr>
                   ))}
@@ -237,12 +307,12 @@ export function SensorScanner(p: Props) {
                         {d.bus === "spi" ? `Chip select ${d.cs_index}` : `port ${d.port}`}
                       </td>
                       {d.guess === "unknown" ? (
-                        <UnknownRow d={d} onAdd={p.onAdd} />
+                        <UnknownRow d={d} sensors={p.config} onAdd={p.onAdd} onGoToSensor={p.onGoToSensor} />
                       ) : (
                         <>
                           <td>{d.guess}</td>
                           <td>
-                            <AddBtn d={d} onAdd={p.onAdd} />
+                            <AddBtn d={d} sensors={p.config} onAdd={p.onAdd} onGoToSensor={p.onGoToSensor} />
                           </td>
                         </>
                       )}
