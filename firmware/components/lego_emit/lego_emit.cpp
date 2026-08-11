@@ -156,6 +156,17 @@ static void current_color_reflt(uint8_t *color_out, bool *has_color, uint8_t *re
         if (f->target != LEGO_TARGET_COLOR && f->target != LEGO_TARGET_REFLT) continue;
         double scale = (f->scale == 0.0) ? 1.0 : f->scale;
         long raw = lround((cache_lookup(f->sensor_id, f->value_index) - f->offset) / scale);
+        // A negative value on the COLOR slot means "no colour" — the classifier's own -1, which a
+        // real LEGO colour sensor reports as 0xFF and the hub's color() surfaces as -1/none. This
+        // used to clamp to 0, i.e. BLACK: "nothing there" became indistinguishable from a black
+        // target, and disagreed with colour *passthrough*, which does carry the -1 through
+        // (combo_value casts via int8_t). REFLT is a 0-100 light percentage with no such
+        // sentinel, so a negative there still clamps to 0.
+        if (raw < 0 && f->target == LEGO_TARGET_COLOR) {
+            *color_out = MC_LEGO_COLOUR_NONE;
+            *has_color = true;
+            continue;
+        }
         if (raw < 0) raw = 0;
         if (raw > 255) raw = 255;
         // Code→value lookup: for COLOR this picks a hub-supported colour id per code (the hub

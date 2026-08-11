@@ -1750,9 +1750,17 @@ static void refresh_task(void *arg)
     int64_t last_activity_ms = esp_timer_get_time() / 1000;
     uint8_t last_brightness = s_cfg.brightness;
 
-    // Button hold tracking: track when button was pressed and released, detect 3-second holds
+    // Button hold tracking: this task tracks the hold only to suppress the page-advance on
+    // release (see button_hold_3s_fired at the page_idx step below). The BLE toggle itself
+    // belongs to button_ctrl.c and must NOT also be done here: both tasks poll the same GPIO,
+    // so a single 3-second hold fired both, one enabling BLE and the other immediately
+    // disabling it again milliseconds later. It looked like BLE refusing to stay on, and only
+    // button_ctrl logs the toggle, so the log showed an unexplained "BLE enabled" followed by
+    // "BLE toggled (on → off)". button_ctrl owns it because it debounces properly (20 ms poll
+    // + DEBOUNCE_MS) and runs even when the display fails to init or is turned off, whereas
+    // this loop's period stretches to 150 ms when the display is disabled.
     int64_t button_press_time = 0;   // when button went down (ms), 0 if not held
-    bool button_hold_3s_fired = false;  // did we already toggle BLE for this hold?
+    bool button_hold_3s_fired = false;  // hold already recognised (suppresses the page advance)
 
     for (;;) {
         config_store_get_display(&s_cfg);                 // pick up live mode/enable changes
@@ -1770,13 +1778,11 @@ static void refresh_task(void *arg)
             last_activity_ms = now;
         }
 
-        // Detect 3-second hold and toggle BLE (works even if display is disabled)
+        // Recognise the same 3-second hold button_ctrl acts on, purely so the release that
+        // follows doesn't also flip the page. The toggle itself is button_ctrl's job.
         if (held && button_press_time > 0 && !button_hold_3s_fired) {
             int64_t hold_time = now - button_press_time;
-            if (hold_time >= 3000) {
-                ble_svc_set_enabled(!ble_svc_is_enabled());
-                button_hold_3s_fired = true;
-            }
+            if (hold_time >= 3000) button_hold_3s_fired = true;
         }
 
         // Button released

@@ -11,6 +11,7 @@
 #include "bus_i2c.h"
 #include "bus_spi.h"
 #include "bus_uart.h"
+#include "i2c_mux.h"
 #include "motion_ctrl.h"
 #include "button_ctrl.h"
 #include "sensor.h"
@@ -69,6 +70,9 @@ void app_main(void)
     // Buses come up before drivers so probes during scan/poll work immediately.
     // Non-fatal: a problem on one bus must not prevent the others or BLE from running.
     if (bus_i2c_init() != ESP_OK)                        ESP_LOGW(TAG, "I2C init failed");
+    // Muxes keep their channel selection across a reset — clear them before anything probes
+    // the bus, or a channel left live from the previous boot bridges two subtrees together.
+    i2c_mux_reset_all();
     if (bus_spi_init() != ESP_OK)                        ESP_LOGW(TAG, "SPI init failed");
     if (bus_uart_init(BOARD_UART_DEFAULT_BAUD) != ESP_OK) ESP_LOGW(TAG, "UART init failed");
 

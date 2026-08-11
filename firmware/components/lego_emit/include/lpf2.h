@@ -18,6 +18,8 @@
 
 #include <stdint.h>
 #include "driver/uart.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 
 typedef uint8_t byte;
 
@@ -105,6 +107,29 @@ void lpf2_set_debug_mask(uint32_t mask);
 #define HEARTBEAT_PERIOD      10000
 #define KEEPALIVE_TIMEOUT_MS   5000
 #define MIN_SYNC_INTERVAL_MS     10
+
+// ── Dead-line detection ───────────────────────────────────────────────────
+// A powered-off hub stops driving RX, which the UART reports as a break /
+// framing error and delivers as a stream of 0x00 bytes. 0x00 is also SYS_SYNC,
+// so those bytes used to look exactly like a hub keeping the link alive and the
+// keepalive watchdog never fired — see heart_beat(). Two independent guards:
+//
+//   • the driver's own UART_BREAK / UART_FRAME_ERR / UART_PARITY_ERR events
+//     (the real signal — an undriven line, not a byte value), and
+//   • a rate backstop for when those events are missed (queue overflow) or the
+//     line floats rather than sitting low: a real hub's SYNC is occasional,
+//     whereas a dead line yields 0x00 at line rate (~11.5k/s at 115200).
+// A break/framing error is not on its own proof of a dead hub — an isolated glitch
+// (connector wobble, motor EMI, baud jitter) produces one on a perfectly live link.
+// So an error only *arms* a grace timer, and the link is torn down only if no genuine
+// hub message arrives before it expires. A powered-off hub never sends another valid
+// frame, so it still drops within LINK_ERR_GRACE_MS; a glitch mid-traffic is absorbed
+// by the very next NACK/SELECT/WRITE. Note SYS_SYNC does NOT count as a genuine message
+// here: it is 0x00, exactly what an undriven line delivers.
+#define LINK_ERR_EVT_QUEUE_LEN     16
+#define LINK_ERR_GRACE_MS         300
+#define ZERO_FLOOD_WINDOW_MS      200
+#define ZERO_FLOOD_MAX             64   // 0x00 bytes per window before the link is declared dead
 #define MAX_MODES                10
 
 #define LPF2_NAME_LEN  12
@@ -203,6 +228,13 @@ private:
     uint32_t      lastSyncTime   = 0;
     byte          extModeOffset  = 0;
 
+    // Dead-line detection state (see the constants above).
+    QueueHandle_t uartEvtQ       = nullptr;   // owned by the UART driver; freed by uart_driver_delete()
+    uint32_t      linkErrMs      = 0;         // when a break/frame error armed the grace timer (0 = none)
+    uint32_t      zeroWindowMs   = 0;         // start of the current 0x00-rate window
+    uint32_t      zeroCount      = 0;         // 0x00 bytes seen in this window
+    bool          sawValidFrame  = false;     // a real hub message landed in this window
+
     uint16_t      comboModeBitmask = 0;
     bool          pendingNack      = false;
     bool          comboActive      = false;
@@ -215,6 +247,17 @@ private:
     void uart_close();
     int  available();            // buffered RX byte count
     int  read_nb();              // read one byte, non-blocking; -1 if none
+
+    // Drain the UART driver's event queue, arming the grace timer on any break /
+    // framing / parity error. Non-blocking; safe to call when closed.
+    void poll_uart_events();
+    // Record genuine hub traffic: feeds the keepalive watchdog and disarms the
+    // break-error grace timer. Call from every real hub message, never from
+    // SYS_SYNC (0x00, indistinguishable from an undriven line) or from noise.
+    void hub_message();
+    // True when the 0x00 rate over the current window says the line is dead
+    // rather than a hub sending SYNC. Feeds on every received byte.
+    bool zero_flood(byte cmd);
 
     // Protocol helpers
     void send_cmd(byte cmd, byte *data, byte len);

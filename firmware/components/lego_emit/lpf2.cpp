@@ -98,17 +98,65 @@ void PoweredUpDevice::uart_open(uint32_t at_baud) {
     cfg.stop_bits  = UART_STOP_BITS_1;
     cfg.flow_ctrl  = UART_HW_FLOWCTRL_DISABLE;
     cfg.source_clk = UART_SCLK_DEFAULT;
-    uart_driver_install(port, UART_RX_BUF, 0, 0, NULL, 0);
+    // Install WITH an event queue: the driver reports break / framing / parity errors
+    // there, which is the only reliable way to tell "the hub stopped driving the line"
+    // from "the hub sent 0x00" (they are the same byte — see heart_beat()).
+    uart_driver_install(port, UART_RX_BUF, 0, LINK_ERR_EVT_QUEUE_LEN, &uartEvtQ, 0);
     uart_param_config(port, &cfg);
     uart_set_pin(port, txPin, rxPin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     uartInstalled = true;
+
+    // Fresh link state: the handshake itself (TX-low pulses, the 2400→operational baud
+    // switch) legitimately produces break/framing errors, so anything from before this
+    // point must not count against the connection we're about to bring up.
+    linkErrMs     = 0;
+    zeroWindowMs  = millis();
+    zeroCount     = 0;
+    sawValidFrame = false;
 }
 
 void PoweredUpDevice::uart_close() {
     if (uartInstalled) {
-        uart_driver_delete(port);
+        uart_driver_delete(port);       // also frees the event queue
+        uartEvtQ      = nullptr;
         uartInstalled = false;
     }
+}
+
+// ── Dead-line detection ────────────────────────────────────────────────────
+void PoweredUpDevice::poll_uart_events() {
+    if (!uartInstalled || !uartEvtQ) return;
+    uart_event_t evt;
+    while (xQueueReceive(uartEvtQ, &evt, 0) == pdTRUE) {
+        switch (evt.type) {
+        case UART_BREAK:
+        case UART_FRAME_ERR:
+        case UART_PARITY_ERR:
+            // Arm the grace timer (don't restart it — a dead line errors continuously,
+            // and restarting on every event would push the deadline out forever).
+            if (linkErrMs == 0) linkErrMs = millis();
+            break;
+        default:
+            break;                       // UART_DATA etc. — the bytes are read via read_nb()
+        }
+    }
+}
+
+void PoweredUpDevice::hub_message() {
+    lastNack  = millis();
+    linkErrMs = 0;            // a real frame arrived: whatever the error was, the hub is alive
+}
+
+bool PoweredUpDevice::zero_flood(byte cmd) {
+    uint32_t now = millis();
+    if (now - zeroWindowMs >= ZERO_FLOOD_WINDOW_MS) {
+        zeroWindowMs  = now;
+        zeroCount     = 0;
+        sawValidFrame = false;
+    }
+    if (cmd == 0x00) zeroCount++;
+    else             sawValidFrame = true;
+    return !sawValidFrame && zeroCount > ZERO_FLOOD_MAX;
 }
 
 int PoweredUpDevice::available() {
@@ -333,6 +381,18 @@ void PoweredUpDevice::reset() {
 
 // ── heart_beat() — service the RX buffer ───────────────────────────────────
 void PoweredUpDevice::heart_beat() {
+    // A hub switched off mid-session stops driving RX; the driver reports that as a
+    // break/framing error while still handing us 0x00 bytes, which are indistinguishable
+    // from SYS_SYNC further down and would keep refreshing the keepalive forever. Trust
+    // the error events, not the byte values.
+    poll_uart_events();
+    if (connected && linkErrMs != 0 && (millis() - linkErrMs) > LINK_ERR_GRACE_MS) {
+        DBG_CONN_PRINT("RX break/framing error, no hub traffic for %u ms — link down, disconnecting\n",
+                       (unsigned)LINK_ERR_GRACE_MS);
+        disconnect();
+        return;
+    }
+
     if (connected && (millis() - lastNack) > KEEPALIVE_TIMEOUT_MS) {
         DBG_CONN_PRINT("Keepalive timeout — disconnecting\n");
         disconnect();
@@ -344,11 +404,24 @@ void PoweredUpDevice::heart_beat() {
         if (ci < 0) break;
         byte cmd = (byte)ci;
 
+        // Backstop for a dead line the error events didn't catch (event queue overflow,
+        // or a floating rather than low line): a real hub sends SYNC occasionally, a dead
+        // line delivers 0x00 at the full line rate.
+        if (connected && zero_flood(cmd)) {
+            DBG_CONN_PRINT("0x00 flood (%u in %u ms) — hub link down, disconnecting\n",
+                           (unsigned)zeroCount, (unsigned)ZERO_FLOOD_WINDOW_MS);
+            disconnect();
+            return;
+        }
+
         // System tokens.
         if (cmd == SYS_SYNC) {
             send_byte(SYS_ACK);
             uint32_t now = millis();
             if (now - lastSyncTime >= MIN_SYNC_INTERVAL_MS) {
+                // Feeds the keepalive (an idle hub may send nothing else) but deliberately
+                // not hub_message(): SYNC is 0x00, byte-identical to what an undriven line
+                // delivers, so it must never disarm the break-error grace timer.
                 lastNack     = now;
                 lastSyncTime = now;
             }
@@ -356,7 +429,7 @@ void PoweredUpDevice::heart_beat() {
         }
         if (cmd == SYS_NACK) {
             DBG_RX_PRINT("NACK\n");
-            lastNack    = millis();
+            hub_message();
             pendingNack = true;
             if (comboActive && comboCallback) {
                 comboCallback();
@@ -365,7 +438,7 @@ void PoweredUpDevice::heart_beat() {
             continue;
         }
         if (cmd == SYS_ACK) {
-            lastNack = millis();
+            hub_message();
             continue;
         }
 
@@ -378,7 +451,7 @@ void PoweredUpDevice::heart_beat() {
             send_cmd(0x44, ackBuf, 1);
             DBG_RX_PRINT("COMBO RESET\n");
             DBG_EVT_PRINT("hub COMBO RESET (combined modes off)\n");
-            lastNack = millis();
+            hub_message();
             continue;
         }
         if (cmd == CMD_COMBO_SET) {
@@ -391,7 +464,7 @@ void PoweredUpDevice::heart_beat() {
             send_cmd(cmd, b, 9);
             DBG_RX_PRINT("COMBO SET\n");
             DBG_EVT_PRINT("hub COMBO SET (combined modes on)\n");
-            lastNack = millis();
+            hub_message();
             continue;
         }
 
@@ -407,7 +480,7 @@ void PoweredUpDevice::heart_beat() {
                 byte extMode = read_byte();
                 read_byte();   // checksum (not verified)
                 extModeOffset = extMode;
-                lastNack = millis();
+                hub_message();
                 continue;
             }
 
@@ -420,7 +493,7 @@ void PoweredUpDevice::heart_beat() {
                     DBG_RX_PRINT("SELECT mode=%d\n", newMode);
                     DBG_EVT_PRINT("hub SELECT -> mode %d\n", newMode);
                 }
-                lastNack = millis();
+                hub_message();
                 continue;
             }
 
@@ -435,6 +508,9 @@ void PoweredUpDevice::heart_beat() {
 
             if (receivedCk != expectedCk) {
                 DBG_RX_PRINT("WRITE checksum mismatch\n");
+                // Corrupted frame: someone is talking, so keep the keepalive fed, but not
+                // hub_message() — corruption is exactly what a failing line produces, so it
+                // must not disarm the break-error grace timer.
                 lastNack = millis();
                 continue;
             }
@@ -446,12 +522,16 @@ void PoweredUpDevice::heart_beat() {
             DBG_EVT_PRINT("hub WRITE -> mode %d (%d bytes)\n", targetMode, payloadSize);
             PoweredUpMode *m = get_mode(targetMode);
             if (m && m->hasCallback) m->myptr(payload, payloadSize);
-            lastNack = millis();
+            hub_message();
 
         } else {
-            // Unknown byte — UART noise (e.g. baud transition). Refresh lastNack
-            // so a noise burst doesn't trip the watchdog.
-            lastNack = millis();
+            // Unknown byte — UART noise (e.g. baud transition). Deliberately does NOT
+            // refresh lastNack: noise is not evidence that a hub is still there, and
+            // treating it as such is what let a powered-off hub hold the link "up"
+            // indefinitely (nothing then re-ran the handshake, so the device stayed
+            // invisible when the hub came back). Genuine hub traffic — NACK/ACK/SELECT/
+            // WRITE/COMBO above — is the only thing that feeds the watchdog now.
+            DBG_RX_PRINT("noise byte 0x%02X (ignored)\n", cmd);
         }
     }
 }

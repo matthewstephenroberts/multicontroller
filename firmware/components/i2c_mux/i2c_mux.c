@@ -19,6 +19,29 @@ void i2c_mux_invalidate(void)
     for (int i = 0; i < MUX_SLOTS; i++) s_cur_mask[i] = -1;
 }
 
+// A TCA9548A holds its channel selection in its own register, which survives an ESP32 reset —
+// nothing power-cycles the mux when the firmware restarts. So at boot a mux can still have a
+// channel live from *before* the reset, while this cache says -1 (unknown). deselect_other_muxes()
+// deliberately skips unknown entries (it can't write to 8 possibly-absent addresses on every
+// route), which left exactly the bridging case the comment above describes wide open for the
+// first access to each mux: two downstream subtrees on the bus at once, two devices answering
+// the same address, and a corrupted read (a colour sensor's ID register coming back 0x00). It
+// self-healed as soon as every mux had been written once, so it showed up only as a couple of
+// warnings at startup and never again.
+//
+// Clearing every mux once at init closes that: after this, every slot is known, and the normal
+// deselect path handles the rest with no per-route cost. An address with no mux behind it just
+// NACKs — cached as 0 regardless, since "nothing there" and "there but deselected" are the same
+// thing as far as bridging goes.
+void i2c_mux_reset_all(void)
+{
+    for (int i = 0; i < MUX_SLOTS; i++) {
+        uint8_t off = 0x00;
+        bus_i2c_write((uint8_t)(0x70 | i), &off, 1);
+        s_cur_mask[i] = 0;
+    }
+}
+
 // All muxes share the same upstream SDA/SCL — a TCA9548A holds its channel selection until
 // explicitly changed, so with more than one mux present, switching to a channel on mux B while
 // mux A still has a channel enabled from a previous select bridges BOTH downstream subtrees

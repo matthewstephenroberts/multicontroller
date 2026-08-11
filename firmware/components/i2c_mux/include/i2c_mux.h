@@ -18,6 +18,12 @@ esp_err_t i2c_mux_select(uint8_t mux_addr, int8_t channel);
 // driving the muxes outside i2c_mux_select, or when their state can no longer be trusted.
 void i2c_mux_invalidate(void);
 
+// Deselect all channels on every mux address (0x70..0x77) and mark the cache known. Call once
+// after bus_i2c_init(): a mux keeps its channel selection across an ESP32 reset, so until each
+// one has been written the cache cannot tell "no channel live" from "a channel left over from
+// before the reboot" — and a stale live channel bridges two subtrees onto the shared bus.
+void i2c_mux_reset_all(void);
+
 // Convenience: select for the given config (handles direct vs muxed) before a transaction.
 esp_err_t i2c_mux_route(uint8_t mux_addr, int8_t channel);
 

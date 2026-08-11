@@ -358,11 +358,37 @@ static int as_achromatic_match(const sensor_cfg_t *cfg, const float *chRaw)
 // silver nearest by brightness (average of r,g,b — no separate "clear" channel exists or is
 // needed for TCS, since intensity already lives in r/g/b's magnitude) over the generic
 // chromatic-colour matcher. Returns -1 if none of the three has been taught.
+// Hysteresis on the achromatic decision. Nearest-reference alone flips at the exact midpoint
+// between two taught brightnesses, and white vs silver is where that hurts: silver is specular,
+// so its return swings with a degree or two of viewing angle, crossing the midpoint in both
+// directions while the target hasn't changed at all. Requiring the challenger to be clearly
+// closer than the id currently held — not merely closer — makes the boundary a band rather than
+// a line. 0.75 of the held distance: decisive moves (a genuinely different target) still switch
+// on the next sample, while jitter around the midpoint holds. This composes with, rather than
+// duplicates, colour_debounce: debounce counts consecutive agreeing samples, this changes which
+// id is produced in the first place, so noise never becomes a candidate to count.
+#define ACHROMATIC_HYST 0.75f
+typedef struct { int id; bool used; int held_id; } achromatic_hold_t;
+static achromatic_hold_t s_achroma[MC_MAX_SENSORS];
+
+static achromatic_hold_t *achromatic_state(int sensor_id)
+{
+    for (int i = 0; i < MC_MAX_SENSORS; i++)
+        if (s_achroma[i].used && s_achroma[i].id == sensor_id) return &s_achroma[i];
+    for (int i = 0; i < MC_MAX_SENSORS; i++)
+        if (!s_achroma[i].used) { s_achroma[i] = (achromatic_hold_t){ .id = sensor_id, .used = true, .held_id = -1 }; return &s_achroma[i]; }
+    return NULL;                                            // table full (shouldn't happen)
+}
+
 static int tcs_achromatic_match(const sensor_cfg_t *cfg, float r, float g, float b)
 {
     static const int ACHROMATIC_IDS[3] = { LC_BLACK, LC_WHITE, LC_SILVER };
     float sample_avg = (r + g + b) / 3.0f;
     float best = 1e18f; int best_id = -1;
+    float held_dist = 1e18f;
+    achromatic_hold_t *st = achromatic_state(cfg->id);
+    int held_id = st ? st->held_id : -1;
+
     for (int i = 0; i < cfg->colour_count; i++) {
         const colour_ref_t *c = &cfg->colours[i];
         if (!c->learned) continue;
@@ -370,10 +396,17 @@ static int tcs_achromatic_match(const sensor_cfg_t *cfg, float r, float g, float
         for (int k = 0; k < 3; k++) if (c->out_id == ACHROMATIC_IDS[k]) { is_achromatic = true; break; }
         if (!is_achromatic) continue;
         float ref_avg = (c->ref[0] + c->ref[1] + c->ref[2]) / 3.0f;
-        float diff = sample_avg - ref_avg;
-        float d = diff * diff;
+        float d = fabsf(sample_avg - ref_avg);              // linear, so the margin below reads as a plain ratio
         if (d < best) { best = d; best_id = c->out_id; }
+        if (c->out_id == held_id) held_dist = d;
     }
+    if (best_id < 0) return -1;                             // nothing achromatic taught
+
+    // Stay on the held id unless the new nearest is clearly better. held_dist is 1e18 when the
+    // held id is no longer taught (re-teach mid-session), which lets the challenger win outright.
+    if (held_id >= 0 && best_id != held_id && best > held_dist * ACHROMATIC_HYST)
+        best_id = held_id;
+    if (st) st->held_id = best_id;
     return best_id;
 }
 
