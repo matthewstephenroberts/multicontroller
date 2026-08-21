@@ -157,8 +157,13 @@ export function SensorConfigForm(p: Props) {
   const applyCopyCalib = () => {
     if (!copySource) return;
     const { calib, colours } = copySource;
+    // colours falls back to [] (never undefined) — an explicit `colours: undefined` here would
+    // get silently dropped by JSON.stringify on save, so the target's save payload would come
+    // out with no "colours" key at all. Firmware treats a missing key as "keep whatever's
+    // already stored for this id," so the copy would silently no-op instead of applying (or
+    // clearing) the target's taught colours.
     p.onChange(
-      p.config.map((s) => (copyTargets.has(s.id) ? { ...s, calib: [...calib], colours: colours ? colours.map((c) => ({ ...c })) : colours } : s)),
+      p.config.map((s) => (copyTargets.has(s.id) ? { ...s, calib: [...calib], colours: colours ? colours.map((c) => ({ ...c })) : [] } : s)),
     );
     setCopySource(null);
   };
@@ -217,7 +222,7 @@ export function SensorConfigForm(p: Props) {
               Factory reset
             </button>
           )}
-          {p.advanced && <button className="ghost sm" onClick={addBlank}>+ Blank sensor</button>}
+          {p.advanced && <button className="ghost sm" title="Add an unconfigured sensor row to wire up manually — Scan is usually easier" onClick={addBlank}>+ Blank sensor</button>}
         </div>
       </div>
 
@@ -362,7 +367,7 @@ export function SensorConfigForm(p: Props) {
                 Reset data
               </button>
             )}
-            <button className="ghost sm danger" onClick={() => remove(i)}>Remove</button>
+            <button className="ghost sm danger" title="Remove this sensor from the config entirely — only takes effect once you Save" onClick={() => remove(i)}>Remove</button>
           </div>
 
           {p.actionError?.sensorId === s.id && (p.actionError.action === "calibrate" || p.actionError.action === "reset_sensor") && (
@@ -731,6 +736,14 @@ export function SensorConfigForm(p: Props) {
           this replaces whatever they currently have. Only a local edit until you{" "}
           <b>Save to device</b>.
         </p>
+        {isColourSensor(copySource.type) && (
+          <p className="muted sm">
+            Each unit's white-point calibration and lighting differ — a target sensor mounted
+            elsewhere on the robot may read a white tile with a colour cast after this copy.
+            Re-run <b>Calibrate</b> (white point) on each target under its own lighting once
+            copied, rather than trusting the copied values as-is.
+          </p>
+        )}
         {copyEligible(copySource).map((s) => (
           <label key={s.id} className="check" style={{ display: "flex", padding: "3px 0" }}>
             <input
@@ -1126,7 +1139,12 @@ function ColourPalette({
             {open ? "Close" : "Edit"}
           </button>
           {(taught || isCustom) ? (
-            <button className="ghost sm danger" disabled={!!busy} onClick={() => onReset(name)}>
+            <button
+              className="ghost sm danger"
+              disabled={!!busy}
+              title={isCustom ? "Erase this custom colour entirely, on the device" : "Clear this colour's taught reference, on the device — falls back to its default/nominal reference"}
+              onClick={() => onReset(name)}
+            >
               {isCustom ? "Delete" : "Reset"}
             </button>
           ) : <span />}
@@ -1233,7 +1251,13 @@ function ColourPalette({
             <AlertTriangle size={12} strokeWidth={2.25} className="inline-icon warn-icon" /> Teach "{actionError.colour}" rejected — nothing was saved: {actionError.message}
           </p>
         )}
-        <button className="ghost sm" disabled={!!busy} style={{ marginTop: 10 }} onClick={() => setCustomDraft({ name: "", id: "12" })}>
+        <button
+          className="ghost sm"
+          disabled={!!busy}
+          style={{ marginTop: 10 }}
+          title="Teach a colour outside the standard palette, captured from the current reading"
+          onClick={() => setCustomDraft({ name: "", id: "12" })}
+        >
           + add custom colour
         </button>
         <p className="muted sm" style={{ margin: "8px 0 0" }}>

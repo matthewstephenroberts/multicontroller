@@ -1059,6 +1059,7 @@ export function App() {
             {tab === "dashboard" && (
               <Dashboard
                 config={config}
+                lego={lego}
                 readings={readings}
                 readingHistory={readingHistory}
                 timelineOrder={timelineOrder}

@@ -1,15 +1,17 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import type { Reading, Sensor, SensorTimeSeries } from "../types";
-import { as7341SwatchGain, rgbSwatch, sensorValueMeta, sensorValues, SPIKE_COLOURS, swatchFromRef, valueSelected } from "../types";
+import type { LegoConfig, Reading, Sensor, SensorTimeSeries } from "../types";
+import { as7341SwatchGain, LEGO_COLOUR_NONE, LEGO_TARGET_COLOR, LEGO_TARGET_REFLT, LEGO_TARGET_RGBI, packLego, packLegoPassthrough, rgbSwatch, sensorValueMeta, sensorValues, SPIKE_COLOURS, swatchFromRef, valueSelected } from "../types";
 import { ChannelChart, timelineChannels } from "./ReadingTimeline";
 import { HelpTip } from "./HelpTip";
-import { Smartphone, Gamepad2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight, ChevronUp, ChevronDown } from "lucide-react";
+import { Smartphone, Gamepad2, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight, ChevronUp, ChevronDown, AlertTriangle } from "lucide-react";
 
 // Resolve a colour id (col_lego/as_lego result) to a name + swatch, preferring the sensor's
 // own learned/custom palette (showing the actual taught colour), then the standard SPIKE colours.
+// `none` covers both sentinels a "no colour" reading can carry: -1 from the classifier itself
+// (col_full/as_full's raw "colour" value), or 255/LEGO_COLOUR_NONE once packed for the hub.
 function legoColour(s: Sensor, id: number): { name: string; swatch: string } {
-  if (id < 0) return { name: "none", swatch: "transparent" };
+  if (id < 0 || id === LEGO_COLOUR_NONE) return { name: "none", swatch: "transparent" };
   const entry = (s.colours ?? []).find((c) => c.out_id === id);
   const std = SPIKE_COLOURS.find((c) => c.id === id);
   const taught = entry?.learned ? swatchFromRef(s.type, entry.ref, as7341SwatchGain(s, entry.ref)) : null;
@@ -18,6 +20,7 @@ function legoColour(s: Sensor, id: number): { name: string; swatch: string } {
 
 interface Props {
   config: Sensor[];
+  lego: LegoConfig;
   readings: Record<number, Reading>;
   readingHistory: Record<number, SensorTimeSeries>;
   timelineOrder: number[];
@@ -549,6 +552,46 @@ export function Dashboard(p: Props) {
     p.onReorder(next);
   };
 
+  // Rolling local history of what's actually being emitted to the LEGO hub right now — reproduced
+  // client-side from the same poll data driving the charts above (packLego/packLegoPassthrough
+  // mirror the firmware's bit-packer/passthrough exactly, see types.ts) rather than requiring a
+  // new BLE command, since the device doesn't currently report this back on its own. Recomputed
+  // whenever a new reading lands, capped the same way readingHistory is (App.tsx).
+  const [legoHistory, setLegoHistory] = useState<
+    { ts: number; r: number; g: number; b: number; i: number; color: number | null; reflect: number | null }[]
+  >([]);
+  useEffect(() => {
+    if (!p.lego.enabled) return;
+    let sample: { r: number; g: number; b: number; i: number; color: number | null; reflect: number | null };
+    if (p.lego.colour_source > 0) {
+      const pt = packLegoPassthrough(p.lego.colour_source, p.readings);
+      sample = { r: pt.r, g: pt.g, b: pt.b, i: pt.clear, color: pt.colour, reflect: pt.reflect };
+    } else {
+      const packed = packLego(p.lego.fields, p.readings);
+      sample = { r: packed.channels[0], g: packed.channels[1], b: packed.channels[2], i: packed.channels[3], color: packed.color, reflect: packed.reflect };
+    }
+    setLegoHistory((prev) => [...prev, { ts: Date.now(), ...sample }].slice(-500));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.readings, p.lego.enabled, p.lego.colour_source, p.lego.fields]);
+
+  // Whichever sensor's palette should resolve the emitted COLOR byte's name/swatch — the
+  // passthrough source sensor, or (bit-packing) whichever sensor the config's COLOR-target field
+  // reads from (the same "last field wins" rule current_color_reflt() itself applies).
+  const legoColourSensor = p.lego.colour_source > 0
+    ? p.config.find((s) => s.id === p.lego.colour_source)
+    : (() => {
+        const colourFields = p.lego.fields.filter((f) => (f.target ?? 0) === LEGO_TARGET_COLOR);
+        const last = colourFields[colourFields.length - 1];
+        return last ? p.config.find((s) => s.id === last.sensor_id) : undefined;
+      })();
+
+  // Live per-field breakdown for the table below — recomputed every render (cheap: packLego is a
+  // handful of array ops), not folded into legoHistory since that's a time series of the 4
+  // channels/color/reflect, not per-field detail. Only meaningful in bit-pack mode; passthrough
+  // bypasses fields entirely (see the section body below).
+  const legoPacked = p.lego.colour_source === 0 ? packLego(p.lego.fields, p.readings) : null;
+  const legoTargetLabel = (t: number) => (t === LEGO_TARGET_COLOR ? "COLOR" : t === LEGO_TARGET_REFLT ? "REFLT" : t === LEGO_TARGET_RGBI ? "RGBI" : `?${t}`);
+
   return (
     <>
     {/* `dash` scopes the dense spacing in styles.css to the dashboard only — the same .card and
@@ -642,6 +685,17 @@ export function Dashboard(p: Props) {
                       <ChannelChart
                         name={c.name}
                         values={hasData ? ts.entries.map((e) => e.values[c.idx] ?? 0) : []}
+                        timestamps={hasData ? ts.entries.map((e) => e.ts) : undefined}
+                        unit={meta?.unit}
+                        extra={c.name === "colour" ? (v) => {
+                          const lc = legoColour(s, Math.round(v));
+                          return (
+                            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                              <span style={{ width: 10, height: 10, borderRadius: 3, background: lc.swatch, border: "1px solid #555", display: "inline-block" }} />
+                              {lc.name}
+                            </div>
+                          );
+                        } : undefined}
                         fixed={fixed}
                         canFix={!!declared}
                         onToggleScale={declared ? () => toggleChannelScale(key, effective) : undefined}
@@ -685,6 +739,138 @@ export function Dashboard(p: Props) {
         })()
       )}
     </section>
+
+    {p.lego.enabled && (
+      <section className="card dash">
+        <div className="card-head">
+          <h2>
+            LEGO emitted values
+            <HelpTip>
+              What's actually being sent to the LEGO hub right now — computed from the same live
+              readings as the charts above, run through your LEGO tab's field mapping (or colour
+              passthrough, if that's on). If a colour change isn't showing up on the hub, compare
+              it here against "Live data" above: if they agree but the hub still doesn't move,
+              the problem is downstream of the ESP32 (link/hub side); if they disagree, the LEGO
+              config's field mapping is the place to look.
+            </HelpTip>
+          </h2>
+        </div>
+        {legoHistory.length === 0 ? (
+          <p className="muted">waiting for data…</p>
+        ) : (
+          <div className="timeline-grid" style={{ gridTemplateColumns: "1fr" }}>
+            <div className="timeline-chart-cell first">
+              <ChannelChart
+                name="R"
+                values={legoHistory.map((h) => h.r)}
+                timestamps={legoHistory.map((h) => h.ts)}
+                fixed={{ min: 0, max: 65535 }}
+              />
+            </div>
+            <div className="timeline-chart-cell">
+              <ChannelChart
+                name="G"
+                values={legoHistory.map((h) => h.g)}
+                timestamps={legoHistory.map((h) => h.ts)}
+                fixed={{ min: 0, max: 65535 }}
+              />
+            </div>
+            <div className="timeline-chart-cell">
+              <ChannelChart
+                name="B"
+                values={legoHistory.map((h) => h.b)}
+                timestamps={legoHistory.map((h) => h.ts)}
+                fixed={{ min: 0, max: 65535 }}
+              />
+            </div>
+            <div className="timeline-chart-cell">
+              <ChannelChart
+                name={p.lego.colour_source > 0 ? "clear" : "I"}
+                values={legoHistory.map((h) => h.i)}
+                timestamps={legoHistory.map((h) => h.ts)}
+                fixed={{ min: 0, max: 65535 }}
+              />
+            </div>
+            {legoHistory.some((h) => h.color !== null) && (
+              <div className="timeline-chart-cell">
+                <ChannelChart
+                  name="COLOR byte"
+                  values={legoHistory.map((h) => h.color ?? -1)}
+                  timestamps={legoHistory.map((h) => h.ts)}
+                  fixed={{ min: 0, max: 255 }}
+                  extra={legoColourSensor ? (v) => {
+                    const lc = legoColour(legoColourSensor, Math.round(v));
+                    return (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 3, background: lc.swatch, border: "1px solid #555", display: "inline-block" }} />
+                        {lc.name}
+                      </div>
+                    );
+                  } : undefined}
+                />
+              </div>
+            )}
+            {legoHistory.some((h) => h.reflect !== null) && (
+              <div className="timeline-chart-cell">
+                <ChannelChart
+                  name="REFLT byte"
+                  unit="%"
+                  values={legoHistory.map((h) => h.reflect ?? 0)}
+                  timestamps={legoHistory.map((h) => h.ts)}
+                  fixed={{ min: 0, max: 100 }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+        {legoPacked ? (
+          legoPacked.rows.length > 0 ? (
+            <table className="grid" style={{ marginTop: 12 }}>
+              <thead>
+                <tr>
+                  <th>sensor</th>
+                  <th>value</th>
+                  <th>target</th>
+                  <th>live value</th>
+                  <th>packed</th>
+                  <th>decoded</th>
+                </tr>
+              </thead>
+              <tbody>
+                {legoPacked.rows.map((row, i) => {
+                  const sensor = p.config.find((s) => s.id === row.sensorId);
+                  const names = sensor ? sensorValues(sensor) : [];
+                  return (
+                    <tr key={i} style={row.dropped ? { opacity: 0.5 } : undefined}>
+                      <td>{sensor?.name ?? `#${row.sensorId}`}</td>
+                      <td>{names[row.valueIndex] ?? `v${row.valueIndex}`}</td>
+                      <td>
+                        {legoTargetLabel(row.target)}
+                        {row.target === LEGO_TARGET_RGBI ? ` (${row.bits}b${row.signed ? " signed" : ""})` : ""}
+                      </td>
+                      <td>{Number.isFinite(row.value) ? row.value.toFixed(2) : "—"}</td>
+                      <td>{row.dropped ? "dropped — over 64-bit budget" : row.raw}</td>
+                      <td title="bit-extracted back out of the final R/G/B/I word — should match 'packed' unless two fields overlap">
+                        {row.decoded === null ? "—" : row.decoded}
+                        {row.decoded !== null && row.decoded !== row.raw && (
+                          <AlertTriangle size={12} strokeWidth={2.25} className="inline-icon warn-icon" style={{ marginLeft: 4 }} />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : (
+            <p className="muted sm" style={{ marginTop: 8 }}>no fields configured on the LEGO tab yet</p>
+          )
+        ) : (
+          <p className="muted sm" style={{ marginTop: 8 }}>
+            colour passthrough is on — reading sensor{legoColourSensor ? ` "${legoColourSensor.name}"` : ` #${p.lego.colour_source}`} directly (colour/reflect/r/g/b/clear above), bit-pack fields below are ignored.
+          </p>
+        )}
+      </section>
+    )}
 
     </>
   );

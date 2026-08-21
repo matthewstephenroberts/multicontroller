@@ -1078,21 +1078,54 @@ export function LegoConfigForm(p: Props) {
     updateField(idx, { ...patch, scale, offset });
   };
 
-  // Colour → RGBI preset: 4×16-bit fields aligned red→R, green→G, blue→B, clear→I.
+  // Switch target (RGBI word <-> COLOR/REFLT byte) while keeping the same *value* range mapped.
+  // COLOR/REFLT are always a fixed 8-bit unsigned byte regardless of what bits/signed happen to
+  // still be stored on the field (see the `rng` calc above) — so the "current shape" to read the
+  // range back out of has to match whichever target the field is *leaving*, not just f.bits/f.signed
+  // (that's what plain remapField assumes). Otherwise a field's scale/offset — fit to one target's
+  // raw shape — gets left on unchanged for the new target's different shape, silently corrupting
+  // the mapped range (e.g. an RGBI field's -255..255 stretch reinterpreted as an 8-bit unsigned
+  // COLOR byte, or vice versa).
+  const changeFieldTarget = (idx: number, newTarget: number) => {
+    const f = l.fields[idx];
+    const oldTarget = fieldTarget(f);
+    const oldBits = oldTarget === LEGO_TARGET_RGBI ? f.bits : 8;
+    const oldSigned = oldTarget === LEGO_TARGET_RGBI ? f.signed : false;
+    const newBits = newTarget === LEGO_TARGET_RGBI ? f.bits : 8;
+    const newSigned = newTarget === LEGO_TARGET_RGBI ? f.signed : false;
+    const r = currentRange(p.sensors, f, oldBits, oldSigned);
+    const { scale, offset } = identityAllowed(p.sensors, f.sensor_id, f.value_index, r.min, r.max, newBits, newSigned)
+      ? { scale: 1, offset: 0 }
+      : scaleFromRange(r.min, r.max, newBits, newSigned);
+    updateField(idx, { target: newTarget, scale, offset });
+  };
+
+  // Colour → RGBI preset: 4 fields aligned red→R, green→G, blue→B, clear→I.
   // Uses the colour sensor's raw counts (clear=0, red=1, green=2, blue=3).
+  // Only touches this sensor's own r/g/b/clear slots — every other field (other sensors,
+  // manually-built fields, etc.) is left untouched rather than the whole list being wiped. And
+  // if one of those 4 slots already exists (e.g. re-clicking after switching to native fields
+  // and back, or after hand-tweaking a slot's width below), its bits/signed/scale/offset are
+  // kept as-is instead of being reset to a fresh 16-bit unsigned default — otherwise a field
+  // deliberately narrowed to fit alongside other RGBI fields would silently balloon back to 16
+  // bits (and potentially no longer fit) every time this preset is (re-)applied.
   const colourSensor = p.sensors.find((s) => s.type === "tcs34725" && (s.transform || "raw") === "raw");
   const applyColourPreset = () => {
     if (!colourSensor) return;
-    set({
-      fields: [1, 2, 3, 0].map((vi) => ({
-        sensor_id: colourSensor.id,
-        value_index: vi,
-        bits: 16 as LegoBits,
-        signed: false,
-        scale: 1,
-        offset: 0,
-      })),
+    const slots = [1, 2, 3, 0];
+    const rest = l.fields.filter(
+      (f) => !(f.sensor_id === colourSensor.id && fieldTarget(f) === LEGO_TARGET_RGBI && slots.includes(f.value_index))
+    );
+    const preset = slots.map((vi) => {
+      const existing = l.fields.find(
+        (f) => f.sensor_id === colourSensor.id && fieldTarget(f) === LEGO_TARGET_RGBI && f.value_index === vi
+      );
+      if (existing) return { ...existing, sensor_id: colourSensor.id, value_index: vi, target: LEGO_TARGET_RGBI };
+      const bits: LegoBits = 16;
+      const { scale, offset } = defaultScaleOffset(p.sensors, colourSensor.id, vi, bits);
+      return { sensor_id: colourSensor.id, value_index: vi, bits, signed: false, scale, offset, target: LEGO_TARGET_RGBI };
     });
+    set({ fields: [...rest, ...preset] });
   };
 
   // Colour → native fields preset: the same 5 values real colour passthrough sends — colour id
@@ -1105,21 +1138,31 @@ export function LegoConfigForm(p: Props) {
   const nativeColourSensor = p.sensors.find((s) => s.transform === "col_full" || s.transform === "as_full");
   const applyNativeFieldsPreset = () => {
     if (!nativeColourSensor) return;
-    const mk = (valueIndex: number, target: number, bits: LegoBits) => {
+    // Same non-destructive approach as applyColourPreset: only this sensor's own 5 slots
+    // (colour/reflect/r/g/b, value_index 0-4) are touched — all other existing fields are kept
+    // as-is. The r/g/b slots (2-4) reuse an existing field's bits/signed if one is already there
+    // (e.g. hand-tweaked, or carried over from a prior "Colour → RGBI" click on the same sensor)
+    // instead of always resetting to 16-bit unsigned.
+    const slots = [
+      { vi: 0, target: LEGO_TARGET_COLOR, bits: 8 as LegoBits },
+      { vi: 1, target: LEGO_TARGET_REFLT, bits: 8 as LegoBits },
+      { vi: 2, target: LEGO_TARGET_RGBI, bits: 16 as LegoBits },
+      { vi: 3, target: LEGO_TARGET_RGBI, bits: 16 as LegoBits },
+      { vi: 4, target: LEGO_TARGET_RGBI, bits: 16 as LegoBits },
+    ];
+    const slotVis = slots.map((s) => s.vi);
+    const rest = l.fields.filter((f) => !(f.sensor_id === nativeColourSensor.id && slotVis.includes(f.value_index)));
+    const preset = slots.map(({ vi, target, bits: defaultBits }) => {
+      const existing = l.fields.find((f) => f.sensor_id === nativeColourSensor.id && f.value_index === vi && fieldTarget(f) === target);
+      // COLOR/REFLT slots are always a fixed 8-bit byte — no bits/signed choice to preserve there.
+      const bits = target === LEGO_TARGET_RGBI && existing ? existing.bits : defaultBits;
+      const signed = target === LEGO_TARGET_RGBI && existing ? existing.signed : false;
       // These 5 values are all isNativeColourValue()-recognised, so this is always scale=1/
       // offset=0 — sent exactly as real passthrough would, not stretched to fill the field.
-      const { scale, offset } = defaultScaleOffset(p.sensors, nativeColourSensor.id, valueIndex, bits);
-      return { sensor_id: nativeColourSensor.id, value_index: valueIndex, bits, signed: false, scale, offset, target };
-    };
-    set({
-      fields: [
-        mk(0, LEGO_TARGET_COLOR, 8),   // colour id
-        mk(1, LEGO_TARGET_REFLT, 8),   // reflect %
-        mk(2, LEGO_TARGET_RGBI, 16),   // r
-        mk(3, LEGO_TARGET_RGBI, 16),   // g
-        mk(4, LEGO_TARGET_RGBI, 16),   // b
-      ],
+      const { scale, offset } = defaultScaleOffset(p.sensors, nativeColourSensor.id, vi, bits);
+      return { sensor_id: nativeColourSensor.id, value_index: vi, bits, signed, scale, offset, target };
     });
+    set({ fields: [...rest, ...preset] });
   };
 
   // Quick assign: set (or clear) one of the 6 slots, rebuilding the whole field list from the
@@ -1531,7 +1574,7 @@ export function LegoConfigForm(p: Props) {
                 <select
                   value={target}
                   title="RGBI packs this field's bits into the 64-bit word (default) — COLOR/REFLT instead drive that native byte directly, so color()/reflection() (or their word-block equivalents) see it without needing rgbi()."
-                  onChange={(e) => updateField(i, { target: Number(e.target.value) })}
+                  onChange={(e) => changeFieldTarget(i, Number(e.target.value))}
                 >
                   <option value={LEGO_TARGET_RGBI}>RGBI word</option>
                   <option value={LEGO_TARGET_COLOR}>COLOR byte</option>

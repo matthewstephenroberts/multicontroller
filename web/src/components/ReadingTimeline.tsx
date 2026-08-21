@@ -1,3 +1,5 @@
+import { useState } from "react";
+import type { ReactNode } from "react";
 import type { Sensor } from "../types";
 import { sensorValues, valueSelected } from "../types";
 
@@ -26,13 +28,25 @@ export function timelineChannels(sensor: Sensor): { idx: number; name: string }[
 // the dashboard-wide scale mode — e.g. as7341's raw Clear legitimately lives in the low
 // thousands of a 0-40000 declared range, unreadably flat when pinned; one click flips just
 // that chart back to auto-fit without giving up stable scales everywhere else.
-export function ChannelChart({ name, values, fixed, canFix, onToggleScale }: {
+export function ChannelChart({ name, values, timestamps, unit, extra, fixed, canFix, onToggleScale }: {
   name: string;
   values: number[];
+  // Same length/index as `values` — entry.ts from the reading history. Optional so callers that
+  // don't have timestamps handy (e.g. tests) don't have to fabricate them; the tooltip just omits
+  // the "Ns ago" line when absent.
+  timestamps?: number[];
+  unit?: string;
+  // Per-point extra context beyond the raw number — e.g. a colour sensor's swatch + classified
+  // name for its "colour" channel. Returns null/undefined for channels with nothing extra to show.
+  extra?: (value: number, index: number) => ReactNode;
   fixed?: { min: number; max: number };
   canFix?: boolean;
   onToggleScale?: () => void;
 }) {
+  // Hovered sample index, or null when the pointer is off the chart. Index into `values`/`points`
+  // (not pixels) so the tooltip content and highlighted dot always agree with what was drawn.
+  const [hover, setHover] = useState<number | null>(null);
+
   if (values.length === 0) {
     return <div className="timeline-placeholder muted">waiting for data… ({name})</div>;
   }
@@ -64,6 +78,29 @@ export function ChannelChart({ name, values, fixed, canFix, onToggleScale }: {
 
   const current = values[values.length - 1];
 
+  // Map a pointer's clientX to the nearest sample index — the SVG is stretched to 100% width via
+  // preserveAspectRatio="none", so pixel space and viewBox space (0-600) only agree up to the
+  // rendered/viewBox width ratio; go through the fraction rather than assuming 1:1.
+  const indexAtClientX = (svg: SVGSVGElement, clientX: number): number => {
+    const rect = svg.getBoundingClientRect();
+    const frac = rect.width > 0 ? (clientX - rect.left) / rect.width : 0;
+    const x = Math.max(0, Math.min(1, frac)) * vbWidth;
+    let best = 0, bestDist = Infinity;
+    for (let i = 0; i < points.length; i++) {
+      const d = Math.abs(points[i].x - x);
+      if (d < bestDist) { bestDist = d; best = i; }
+    }
+    return best;
+  };
+
+  const hoverPoint = hover !== null ? points[hover] : null;
+  const hoverValue = hover !== null ? values[hover] : null;
+  const hoverTs = hover !== null ? timestamps?.[hover] : undefined;
+  const hoverExtra = hover !== null && hoverValue !== null && extra ? extra(hoverValue, hover) : null;
+  // Keep the tooltip's left edge from running off the chart at either end (translateX(-50%)
+  // would otherwise clip against the parent's overflow at the first/last few samples).
+  const hoverLeftPct = hoverPoint ? Math.max(6, Math.min(94, (hoverPoint.x / vbWidth) * 100)) : 0;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
@@ -88,18 +125,59 @@ export function ChannelChart({ name, values, fixed, canFix, onToggleScale }: {
           <span style={{ fontWeight: 600 }}>{Number.isFinite(current) ? current.toFixed(2) : "—"}</span>
         </span>
       </div>
-      <svg
-        width="100%"
-        height={64}
-        viewBox={`0 0 ${vbWidth} ${vbHeight}`}
-        preserveAspectRatio="none"
-        style={{ border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel-2)", display: "block" }}
-      >
-        <path d={pathD} stroke="var(--accent)" fill="none" strokeWidth={2} vectorEffect="non-scaling-stroke" />
-        {points.length > 0 && (
-          <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r={3} fill="var(--accent)" />
+      <div style={{ position: "relative" }}>
+        <svg
+          width="100%"
+          height={64}
+          viewBox={`0 0 ${vbWidth} ${vbHeight}`}
+          preserveAspectRatio="none"
+          style={{ border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel-2)", display: "block", cursor: points.length > 1 ? "crosshair" : undefined }}
+          onMouseMove={(e) => points.length > 1 && setHover(indexAtClientX(e.currentTarget, e.clientX))}
+          onMouseLeave={() => setHover(null)}
+        >
+          <path d={pathD} stroke="var(--accent)" fill="none" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+          {points.length > 0 && (
+            <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r={3} fill="var(--accent)" />
+          )}
+          {hoverPoint && (
+            <>
+              <line
+                x1={hoverPoint.x} y1={0} x2={hoverPoint.x} y2={vbHeight}
+                stroke="var(--muted)" strokeWidth={1} strokeDasharray="2,2" vectorEffect="non-scaling-stroke"
+              />
+              <circle cx={hoverPoint.x} cy={hoverPoint.y} r={4} fill="var(--panel-2)" stroke="var(--accent)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+            </>
+          )}
+        </svg>
+        {hoverPoint && hoverValue !== null && (
+          <div
+            style={{
+              position: "absolute",
+              left: `${hoverLeftPct}%`,
+              transform: "translate(-50%, -100%)",
+              top: -6,
+              background: "var(--panel)",
+              border: "1px solid var(--line)",
+              borderRadius: 6,
+              padding: "4px 8px",
+              fontSize: "11px",
+              lineHeight: 1.4,
+              whiteSpace: "nowrap",
+              pointerEvents: "none",
+              zIndex: 1,
+              boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
+            }}
+          >
+            <div style={{ fontWeight: 600 }}>
+              {Number.isFinite(hoverValue) ? hoverValue.toFixed(2) : "—"}{unit ? ` ${unit}` : ""}
+            </div>
+            {hoverExtra}
+            {hoverTs !== undefined && (
+              <div style={{ color: "var(--muted)" }}>{new Date(hoverTs).toLocaleTimeString()}</div>
+            )}
+          </div>
         )}
-      </svg>
+      </div>
     </div>
   );
 }

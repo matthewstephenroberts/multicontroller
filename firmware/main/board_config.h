@@ -18,8 +18,8 @@
 // ================== BOARD SELECTION ==================
 //#define BOARD_ESP32_ZERO     // ← Change this for different boards
 //#define BOARD_ESP32_TFT      // ← Change this for different boards
-#define BOARD_ATOMS3_LITE      // ← Change this for different boards
-//#define BOARD_ATOMS3R         // ← Change this for different boards
+//#define BOARD_ATOMS3_LITE      // ← Change this for different boards
+#define BOARD_ATOMS3R         // ← Change this for different boards
 
 #if defined(BOARD_ESP32_ZERO)
 #include "boards/board_esp32_zero.h"

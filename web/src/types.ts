@@ -765,6 +765,12 @@ export interface LegoPackedRow {
   bits: LegoBits;
   signed: boolean;
   target: number; // LEGO_TARGET_*
+  dropped: boolean; // RGBI field that didn't fit the 64-bit budget — not sent at all
+  // What a receiver would get back out by bit-extracting this field's slice from the final
+  // R/G/B/I channels (or, for COLOR/REFLT, just the byte itself) — independent of `raw` above,
+  // so the two only agree if the pack/unpack bit math genuinely round-trips. null for a dropped
+  // field (nothing to extract).
+  decoded: number | null;
 }
 export interface LegoPacked {
   channels: [number, number, number, number]; // R, G, B, I (what the hub receives)
@@ -785,7 +791,12 @@ export function packLego(fields: LegoField[], readings: Record<number, Reading>)
   let bitoff = 0n;
   let color: number | null = null;
   let reflect: number | null = null;
-  const rows: LegoPackedRow[] = fields.map((f) => {
+  // Per-RGBI-field bit position, recorded alongside `rows` so the decode pass below can
+  // bit-extract each field's slice back out of the *final* word — independent of the `raw` value
+  // computed here, so the two only agree if the pack/unpack bit math genuinely round-trips (a
+  // real cross-check, not just echoing `raw` back).
+  const slot: { rowIdx: number; bitoff: bigint }[] = [];
+  const rows: LegoPackedRow[] = fields.map((f, i) => {
     const target = f.target ?? LEGO_TARGET_RGBI;
     const value = readings[f.sensor_id]?.values?.[f.value_index] ?? 0;
     const scale = f.scale === 0 ? 1 : f.scale;
@@ -797,14 +808,15 @@ export function packLego(fields: LegoField[], readings: Record<number, Reading>)
       // plain 0-100 percentage with no sentinel, so it still clamps.
       if (raw < 0 && target === LEGO_TARGET_COLOR) {
         color = LEGO_COLOUR_NONE;
-        return { sensorId: f.sensor_id, valueIndex: f.value_index, value, raw: LEGO_COLOUR_NONE, bits: f.bits, signed: f.signed, target };
+        return { sensorId: f.sensor_id, valueIndex: f.value_index, value, raw: LEGO_COLOUR_NONE, bits: f.bits, signed: f.signed, target, dropped: false, decoded: LEGO_COLOUR_NONE };
       }
       // current_color_reflt() clamps to a byte *before* the map lookup — a code that scaled
       // outside 0-255 is still a valid array index into colour_map once clamped.
       raw = Math.max(0, Math.min(255, raw));
       if (f.colour_map) raw = (raw >= 0 && raw < f.colour_map.length) ? f.colour_map[raw] : LEGO_COLOUR_NONE;
       if (target === LEGO_TARGET_COLOR) color = raw; else reflect = raw;
-      return { sensorId: f.sensor_id, valueIndex: f.value_index, value, raw, bits: f.bits, signed: f.signed, target };
+      // A single byte, sent as-is — nothing to bit-extract, so decoded === raw by construction.
+      return { sensorId: f.sensor_id, valueIndex: f.value_index, value, raw, bits: f.bits, signed: f.signed, target, dropped: false, decoded: raw };
     }
 
     // current_rgbi() looks the map up on the *unclamped* raw and treats any out-of-table index —
@@ -827,7 +839,7 @@ export function packLego(fields: LegoField[], readings: Record<number, Reading>)
     // over-budget config (which the editor flags but still lets you save) previewed differently
     // from what the hub would actually receive.
     if (Number(bitoff) + f.bits > LEGO_TOTAL_BITS) {
-      return { sensorId: f.sensor_id, valueIndex: f.value_index, value, raw: 0, bits: f.bits, signed: f.signed, target };
+      return { sensorId: f.sensor_id, valueIndex: f.value_index, value, raw: 0, bits: f.bits, signed: f.signed, target, dropped: true, decoded: null };
     }
 
     const mask = (1 << f.bits) - 1; // bits ≤ 16, safe in a JS number
@@ -837,9 +849,18 @@ export function packLego(fields: LegoField[], readings: Record<number, Reading>)
       raw = Math.max(0, Math.min(mask, raw));
     }
     word |= BigInt(raw & mask) << bitoff; // raw & mask = unsigned two's-complement bits
+    slot.push({ rowIdx: i, bitoff });
     bitoff += BigInt(f.bits);
-    return { sensorId: f.sensor_id, valueIndex: f.value_index, value, raw, bits: f.bits, signed: f.signed, target };
+    return { sensorId: f.sensor_id, valueIndex: f.value_index, value, raw, bits: f.bits, signed: f.signed, target, dropped: false, decoded: null };
   });
+  // Decode pass: bit-extract each RGBI field's slice back out of the *final* word (built above
+  // from every field, not just this one) — this is what a receiver on the hub side actually gets.
+  for (const { rowIdx, bitoff: off } of slot) {
+    const f = fields[rowIdx];
+    const mask = (1 << f.bits) - 1;
+    const bits = Number((word >> off) & BigInt(mask));
+    rows[rowIdx].decoded = f.signed && (bits & (1 << (f.bits - 1))) ? bits - (1 << f.bits) : bits;
+  }
   const channels: [number, number, number, number] = [
     Number(word & 0xffffn),
     Number((word >> 16n) & 0xffffn),
@@ -847,6 +868,32 @@ export function packLego(fields: LegoField[], readings: Record<number, Reading>)
     Number((word >> 48n) & 0xffffn),
   ];
   return { channels, color, reflect, rows };
+}
+
+export interface LegoPassthrough {
+  colour: number;
+  reflect: number;
+  r: number;
+  g: number;
+  b: number;
+  clear: number;
+}
+
+// Reproduce firmware's passthrough_get() (lego_emit.cpp) — when lego.colour_source > 0 the
+// bit-packer (packLego above) is bypassed entirely and these 6 values are read straight off the
+// source sensor's col_full/as_full cache: [colour, reflect, r, g, b, clear]. No scale/offset/bits
+// involved — just round() and, for r/g/b/clear only, a clamp to uint16.
+export function packLegoPassthrough(sensorId: number, readings: Record<number, Reading>): LegoPassthrough {
+  const v = readings[sensorId]?.values ?? [];
+  const clampU16 = (x: number) => Math.max(0, Math.min(0xffff, Math.round(x || 0)));
+  return {
+    colour: Math.round(v[0] ?? 0),
+    reflect: Math.round(v[1] ?? 0),
+    r: clampU16(v[2] ?? 0),
+    g: clampU16(v[3] ?? 0),
+    b: clampU16(v[4] ?? 0),
+    clear: clampU16(v[5] ?? 0),
+  };
 }
 
 export const NAMED_TYPES = ["generic", "bmp280", "bme280", "qmi8658", "bmi270_bmm150", "ina226", "tcs34725", "as7341", "vl53l1x", "vl53l0x", "tof10120", "tofi2c", "gamepad", "gpio", "adc", "mcp3208", "qre1113", "tssp_ir", "vk36n16", "m5_8angle", "m5_step16"] as const;
